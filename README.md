@@ -2,7 +2,7 @@
 
 # GUST Browser
 
-**simply better**
+**"simply better"** - Everyone
 
 *by [Nautilus Labs](https://github.com/nautilus-os)*
 
