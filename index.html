@@ -4836,6 +4836,17 @@
                     <div class="spinner"></div>
                     <div id="overlayText">Initializing...</div>
                 </div>
+                <div id="elemHighlightOverlay" style="
+                    display:none;
+                    position:absolute;
+                    pointer-events:none;
+                    z-index:50;
+                    outline:2px solid var(--ac,#9de5ff);
+                    outline-offset:0px;
+                    box-shadow:0 0 0 4px rgba(157,229,255,0.18), inset 0 0 0 9999px rgba(157,229,255,0.08);
+                    border-radius:2px;
+                    transition:top .08s,left .08s,width .08s,height .08s;
+                "></div>
                 <iframe id="frame"
                     sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-pointer-lock allow-downloads"
                     allow="clipboard-read; clipboard-write; fullscreen; autoplay; camera; microphone; gamepad"></iframe>
@@ -6780,7 +6791,8 @@
                 if (progressWrap) progressWrap.classList.add("hidden");
                 urlInput.value = HOME_INTERNAL;
                 pageUrl = "";
-                currentDoc = null; 
+                currentDoc = null;
+                try { const _ov=$('elemHighlightOverlay'); if(_ov) _ov.style.display='none'; } catch(e) {}
                 setTabTitle("New Tab");
                 isErrorPage = false;
                 updateSecurityChip(HOME_INTERNAL);
@@ -6910,8 +6922,8 @@
                 if (!elementsEl.classList.contains("hidden")) {
                     inspectCurrentPage();
                 } else {
-                    // Clear any highlight on the proxied page when inspector closes
-                    try { frame.contentWindow.postMessage({ type: 'gust:clearHighlight' }, '*'); } catch(e) {}
+                    // Clear highlight overlay when inspector closes
+                    const _ov = $('elemHighlightOverlay'); if (_ov) _ov.style.display = 'none';
                 }
             }
 
@@ -6921,14 +6933,19 @@
                     return;
                 }
 
-                if (!currentDoc) {
+                // Use the live iframe document so node references produce valid selectors
+                // that resolve correctly when sent back via postMessage for highlight/styles/box.
+                let liveDoc = null;
+                try { liveDoc = frame.contentDocument || frame.contentWindow?.document; } catch(e) {}
+
+                if (!liveDoc) {
                     elementsTree.innerHTML = '<li style="color: var(--tx3); padding: 8px;">No page loaded</li>';
                     return;
                 }
 
                 try {
                     elementsTree.innerHTML = '';
-                    renderElementNode(currentDoc.documentElement, elementsTree, 0);
+                    renderElementNode(liveDoc.documentElement, elementsTree, 0);
                 } catch (e) {
                     elementsTree.innerHTML = '<li style="color: var(--err); padding: 8px;">Cannot inspect: ' + e.message + '</li>';
                 }
@@ -7092,14 +7109,54 @@
                 } else {
                     detail.style.display = 'flex';
                     detail.style.flexDirection = 'column';
+                    detail.style.flexShrink = '0';
                 }
 
                 if (tab === 'styles') {
-                    frame.contentWindow?.postMessage({ type: 'gust:getStyles', selector: getSelector(element) }, '*');
-                    content.innerHTML = '<span style="color:var(--tx3);opacity:.6">Fetching styles…</span>';
+                    // Read computed styles directly from the live iframe node
+                    try {
+                        const cs = element.ownerDocument.defaultView
+                            ? element.ownerDocument.defaultView.getComputedStyle(element)
+                            : getComputedStyle(element);
+                        const styleProps = ['display','position','width','height','min-width','min-height','max-width','max-height',
+                            'flex','flex-direction','flex-wrap','grid','gap','overflow',
+                            'margin','margin-top','margin-right','margin-bottom','margin-left',
+                            'padding','padding-top','padding-right','padding-bottom','padding-left',
+                            'color','background','background-color','border','border-radius',
+                            'box-shadow','opacity','visibility','z-index',
+                            'font-size','font-weight','font-family','line-height','text-align',
+                            'text-decoration','white-space','letter-spacing',
+                            'transform','transition','animation'];
+                        const styles = {};
+                        styleProps.forEach(p => { styles[p] = cs.getPropertyValue(p); });
+                        // Reuse the stylesResult rendering by dispatching a fake message
+                        window.dispatchEvent(new MessageEvent('message', { data: { type: 'gust:stylesResult', styles } }));
+                    } catch(e) {
+                        content.innerHTML = '<span style="color:var(--tx3)">Could not read styles</span>';
+                    }
                 } else if (tab === 'box') {
-                    frame.contentWindow?.postMessage({ type: 'gust:getBox', selector: getSelector(element) }, '*');
-                    content.innerHTML = '<span style="color:var(--tx3);opacity:.6">Fetching box model…</span>';
+                    // Read box model directly from the live iframe node
+                    try {
+                        const r = element.getBoundingClientRect();
+                        const cs = element.ownerDocument.defaultView
+                            ? element.ownerDocument.defaultView.getComputedStyle(element)
+                            : getComputedStyle(element);
+                        const parseNum = v => parseFloat(v) || 0;
+                        window.dispatchEvent(new MessageEvent('message', { data: { type: 'gust:boxResult', box: {
+                            width: r.width, height: r.height, top: r.top, left: r.left,
+                            bottom: r.bottom, right: r.right,
+                            marginTop:    parseNum(cs.marginTop),
+                            marginRight:  parseNum(cs.marginRight),
+                            marginBottom: parseNum(cs.marginBottom),
+                            marginLeft:   parseNum(cs.marginLeft),
+                            paddingTop:    parseNum(cs.paddingTop),
+                            paddingRight:  parseNum(cs.paddingRight),
+                            paddingBottom: parseNum(cs.paddingBottom),
+                            paddingLeft:   parseNum(cs.paddingLeft),
+                        }}}));
+                    } catch(e) {
+                        content.innerHTML = '<span style="color:var(--tx3)">Could not read box model</span>';
+                    }
                 } else if (tab === 'attrs') {
                     let html = '';
                     if (element.attributes && element.attributes.length > 0) {
@@ -7138,9 +7195,13 @@
             if (elemDetailToggleBtn && elemDetailPanel) {
                 elemDetailToggleBtn.addEventListener('click', () => {
                     const isOn = elemDetailToggleBtn.classList.toggle('on');
-                    // Only affect visibility if an element is selected (detail panel has content)
-                    if (elemDetailPanel.style.display !== 'none') {
-                        elemDetailPanel.style.display = isOn ? 'flex' : 'none';
+                    // Always apply visibility; if turning on and an element is selected, show the panel
+                    if (isOn && selectedElement) {
+                        elemDetailPanel.style.display = 'flex';
+                        elemDetailPanel.style.flexDirection = 'column';
+                        showElementDetail(selectedElement, currentDetailTab || 'styles');
+                    } else if (!isOn) {
+                        elemDetailPanel.style.display = 'none';
                     }
                     // Store pref so next selection respects it
                     elemDetailToggleBtn._detailVisible = isOn;
@@ -7255,30 +7316,24 @@
             });
 
             function highlightElementInPage(element) {
-                const path = [];
-                let current = element;
-                while (current && current.parentElement) {
-                    const parent = current.parentElement;
-                    const siblings = Array.from(parent.children).filter(c => c.tagName === current.tagName);
-                    const index = siblings.indexOf(current);
-                    const tag = current.tagName.toLowerCase();
-                    if (siblings.length > 1) {
-                        path.unshift(tag + ':nth-of-type(' + (index + 1) + ')');
-                    } else {
-                        path.unshift(tag);
-                    }
-                    current = parent;
-                }
-
-                const selector = path.join(' > ');
-                console.log('Highlighting element with selector:', selector);
+                const overlay = $('elemHighlightOverlay');
+                if (!overlay || !element) { if(overlay) overlay.style.display='none'; return; }
                 try {
-                    frame.contentWindow.postMessage({
-                        type: 'gust:highlight',
-                        selector: selector
-                    }, '*');
-                } catch (e) {
-                    console.log('Cannot send message to iframe:', e);
+                    // Get the iframe's position within the main document
+                    const frameRect = frame.getBoundingClientRect();
+                    // Get the element's position within the iframe's coordinate space
+                    const elemRect = element.getBoundingClientRect();
+                    // Compute position relative to the .view container (which is position:relative)
+                    const viewRect = frame.parentElement.getBoundingClientRect();
+                    const top    = (frameRect.top  - viewRect.top)  + elemRect.top;
+                    const left   = (frameRect.left - viewRect.left) + elemRect.left;
+                    overlay.style.top    = top  + 'px';
+                    overlay.style.left   = left + 'px';
+                    overlay.style.width  = elemRect.width  + 'px';
+                    overlay.style.height = elemRect.height + 'px';
+                    overlay.style.display = 'block';
+                } catch(e) {
+                    overlay.style.display = 'none';
                 }
             }
 
