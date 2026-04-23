@@ -378,7 +378,6 @@ button,input,select,textarea{font:inherit}
     <div class="settings-card-head"><i class="fas fa-network-wired"></i> WISP Server</div>
     <div class="settings-card-body">
       <div class="patch-row"><div class="patch-row-info"><div class="patch-row-label">WebSocket URL input</div><div class="patch-row-desc">Removes the WISP server URL input from Settings. The default server (wss://wisp.mercurywork.shop/wisp/) will always be used.</div></div><div class="patch-check checked" data-patch="wisp-url" data-section="connection" onclick="togglePatch(this)"></div></div>
-      <div class="patch-row"><div class="patch-row-info"><div class="patch-row-label">Proxy tab favicons</div><div class="patch-row-desc">Disables favicon proxying through WISP and removes the toggle from Settings. Google's favicon service will be used instead.</div></div><div class="patch-check checked" data-patch="favicon-proxy" data-section="connection" onclick="togglePatch(this)"></div></div>
     </div>
   </div>
   <div class="settings-card">
@@ -419,7 +418,7 @@ button,input,select,textarea{font:inherit}
   <div class="settings-card">
     <div class="settings-card-head"><i class="fas fa-image"></i> Tab Favicons</div>
     <div class="settings-card-body">
-      <div class="patch-row"><div class="patch-row-info"><div class="patch-row-label">Proxy favicons through WISP</div><div class="patch-row-desc">Disables favicon proxying and removes the duplicate toggle from the Search section of Settings.</div></div><div class="patch-check checked" data-patch="search-favicon" data-section="search" onclick="togglePatch(this)"></div></div>
+      <div class="patch-row"><div class="patch-row-info"><div class="patch-row-label">Proxy favicons through WISP</div><div class="patch-row-desc">Disables favicon proxying through WISP and removes the toggle from the Search section of Settings. Google's favicon service will be used instead.</div></div><div class="patch-check checked" data-patch="search-favicon" data-section="search" onclick="togglePatch(this)"></div></div>
     </div>
   </div>
 </div>
@@ -944,7 +943,6 @@ function buildPatchScript(removedPatches) {
   }
 
   // ---- localStorage pre-seeds (keys verified against GUST source) ----
-  if (rm.has('favicon-proxy'))   { ls('gust:favicon-proxy:v1','false'); }
   if (rm.has('search-favicon'))  { ls('gust:favicon-proxy:v1','false'); }
   if (rm.has('webrtc-block'))    { ls('gust:webrtc:block:v1','false'); }
   if (rm.has('media-headers'))   { ls('gust:media:headers:v1','false'); }
@@ -978,8 +976,6 @@ function buildPatchScript(removedPatches) {
   // Connection
   if (rm.has('wisp-url'))
     css('#settingsWispInput,#settingsWispSave,#settingsWispReset,#settingsWispStatus');
-  if (rm.has('favicon-proxy'))
-    css('#faviconProxySwitch');                          // hides both Connection & Search instances
   if (rm.has('search-favicon'))
     css('#faviconProxySwitch');
   if (rm.has('threads'))
@@ -1609,7 +1605,7 @@ function downloadBaseGUST() {
 }
 
 const LITE_PATCHES = [
-  'threads','favicon-proxy','webrtc-block','media-headers',
+  'threads','webrtc-block','media-headers',
   'spellcheck','search-favicon','ua-request','ua-page',
   'dev-logs','dev-inspector','metrics','language'
 ];
