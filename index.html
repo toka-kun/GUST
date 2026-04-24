@@ -3134,6 +3134,17 @@
         .settings-nav-item[data-section="about"]:hover i {
             animation: _gust-pulse .45s cubic-bezier(.34,1.56,.64,1) forwards;
         }
+        /* Fallback — rotate-left: elastic rewind (retry/rollback feel) */
+        @keyframes _gust-rewind {
+            0%   { transform: rotate(0deg) scale(1); }
+            30%  { transform: rotate(-200deg) scale(1.18); }
+            65%  { transform: rotate(-340deg) scale(0.92); }
+            85%  { transform: rotate(-355deg) scale(1.05); }
+            100% { transform: rotate(-360deg) scale(1); }
+        }
+        .settings-nav-item[data-section="fallback"]:hover i {
+            transform: rotate(-180deg); transition: transform .35s cubic-bezier(.34,1.56,.64,1);
+        }
 
         
         .settings-slider {
@@ -3903,6 +3914,8 @@
                                         class="fas fa-keyboard"></i><span>Shortcuts</span></button>
                                 <button class="settings-nav-item" data-section="language"><i
                                         class="fas fa-language"></i><span>Language</span></button>
+                                <button class="settings-nav-item" data-section="fallback"><i
+                                        class="fas fa-rotate-left"></i><span>Fallback</span></button>
                                 <hr style="margin-top:auto; border:none; border-top:1px solid var(--bd); margin-bottom:4px; margin-left:4px; margin-right:4px;">
                                 <button class="settings-nav-item" data-section="tutorial"><i
                                         class="fas fa-map"></i><span>Tutorial</span></button>
@@ -4720,6 +4733,120 @@
                             </div>
 
 
+                            <!-- ── Fallback settings section ── -->
+                            <div class="settings-section" data-section="fallback" style="display:none;">
+                                <div class="settings-card">
+                                    <div class="settings-card-head"><i class="fas fa-rotate-left"></i> Fallback Behaviour</div>
+                                    <div class="settings-card-body">
+                                        <div class="settings-switch-row">
+                                            <div>
+                                                <div class="settings-switch-label">Enable fallback on load error</div>
+                                                <div class="settings-hint">When a page fails to load (network error, bad status, timeout), automatically retry using the fallback proxy before showing an error page.</div>
+                                            </div>
+                                            <div class="settings-switch on" id="fallbackEnabledSwitch">
+                                                <div class="settings-switch-track"><div class="settings-switch-thumb"></div></div>
+                                            </div>
+                                        </div>
+                                        <div class="settings-switch-row">
+                                            <div>
+                                                <div class="settings-switch-label">Log retries</div>
+                                                <div class="settings-hint">All fallback retry attempts are always written to the request log, including which WISP server was used.</div>
+                                            </div>
+                                            <div style="display:flex;align-items:center;padding:4px 8px;background:rgba(157,229,255,0.07);border:1px solid rgba(157,229,255,0.18);border-radius:6px;font-size:11px;font-family:var(--mono);color:var(--ac);white-space:nowrap;flex-shrink:0;">always on</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="settings-card">
+                                    <div class="settings-card-head"><i class="fas fa-server"></i> Fallback WISP Server</div>
+                                    <div class="settings-card-body">
+                                        <label class="settings-label">Fallback WebSocket URL</label>
+                                        <div class="settings-hint" style="margin-bottom:10px;">Used only when the primary WISP server is unreachable or returns an error. Leave blank to disable.</div>
+                                        <div style="display:flex; gap:8px;">
+                                            <input type="text" class="settings-input" id="settingsFallbackWispInput"
+                                                placeholder="wss://fallback.example.com/wisp/">
+                                            <button class="settings-btn-icon" id="settingsFallbackWispSave" title="Save"><i
+                                                    class="fas fa-check"></i></button>
+                                            <button class="settings-btn-icon" id="settingsFallbackWispReset" title="Clear"><i
+                                                    class="fas fa-xmark"></i></button>
+                                        </div>
+                                        <div class="settings-hint" id="settingsFallbackWispStatus" style="margin-top:8px;"></div>
+                                    </div>
+                                </div>
+
+                                <div class="settings-card">
+                                    <div class="settings-card-head"><i class="fas fa-clock-rotate-left"></i> Retry Policy</div>
+                                    <div class="settings-card-body">
+                                        <div class="settings-switch-row" style="align-items:center;">
+                                            <div>
+                                                <div class="settings-switch-label">Max retry attempts (main)</div>
+                                                <div class="settings-hint">How many times Gust retries on the primary WISP server before switching to the fallback.</div>
+                                            </div>
+                                            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                                                <button class="settings-btn-icon" id="mainRetryMinus" title="Decrease"><i class="fas fa-minus"></i></button>
+                                                <span id="mainRetryVal" style="font-family:var(--mono); font-size:14px; min-width:24px; text-align:center; color:var(--tx);">3</span>
+                                                <button class="settings-btn-icon" id="mainRetryPlus" title="Increase"><i class="fas fa-plus"></i></button>
+                                            </div>
+                                        </div>
+                                        <div class="settings-switch-row" style="align-items:center; margin-top:12px;">
+                                            <div>
+                                                <div class="settings-switch-label">Max retry attempts (fallback)</div>
+                                                <div class="settings-hint">How many times Gust will attempt the fallback WISP before giving up and showing an error.</div>
+                                            </div>
+                                            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                                                <button class="settings-btn-icon" id="fallbackRetryMinus" title="Decrease"><i class="fas fa-minus"></i></button>
+                                                <span id="fallbackRetryVal" style="font-family:var(--mono); font-size:14px; min-width:24px; text-align:center; color:var(--tx);">3</span>
+                                                <button class="settings-btn-icon" id="fallbackRetryPlus" title="Increase"><i class="fas fa-plus"></i></button>
+                                            </div>
+                                        </div>
+                                        <div class="settings-switch-row" style="align-items:center; margin-top:12px;">
+                                            <div>
+                                                <div class="settings-switch-label">Retry delay (seconds)</div>
+                                                <div class="settings-hint">Wait time between each retry attempt before switching to the fallback server.</div>
+                                            </div>
+                                            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                                                <button class="settings-btn-icon" id="fallbackDelayMinus" title="Decrease"><i class="fas fa-minus"></i></button>
+                                                <span id="fallbackDelayVal" style="font-family:var(--mono); font-size:14px; min-width:24px; text-align:center; color:var(--tx);">3</span>
+                                                <button class="settings-btn-icon" id="fallbackDelayPlus" title="Increase"><i class="fas fa-plus"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="settings-card">
+                                    <div class="settings-card-head"><i class="fas fa-triangle-exclamation"></i> Error Triggers</div>
+                                    <div class="settings-card-body">
+                                        <div class="settings-switch-row">
+                                            <div>
+                                                <div class="settings-switch-label">Fallback on HTTP 5xx errors</div>
+                                                <div class="settings-hint">Retry via fallback when the origin server returns a 500-level status code.</div>
+                                            </div>
+                                            <div class="settings-switch on" id="fallback5xxSwitch">
+                                                <div class="settings-switch-track"><div class="settings-switch-thumb"></div></div>
+                                            </div>
+                                        </div>
+                                        <div class="settings-switch-row">
+                                            <div>
+                                                <div class="settings-switch-label">Fallback on timeout</div>
+                                                <div class="settings-hint">Retry via fallback when the primary server exceeds the connection timeout.</div>
+                                            </div>
+                                            <div class="settings-switch on" id="fallbackTimeoutSwitch">
+                                                <div class="settings-switch-track"><div class="settings-switch-thumb"></div></div>
+                                            </div>
+                                        </div>
+                                        <div class="settings-switch-row">
+                                            <div>
+                                                <div class="settings-switch-label">Fallback on DNS failure</div>
+                                                <div class="settings-hint">Retry via fallback when the hostname cannot be resolved.</div>
+                                            </div>
+                                            <div class="settings-switch" id="fallbackDnsSwitch">
+                                                <div class="settings-switch-track"><div class="settings-switch-thumb"></div></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- ── Files & Media settings section ── -->
                             <div class="settings-section" data-section="filesandmedia" style="display:none;">
                                 <div class="settings-card">
@@ -5007,7 +5134,7 @@
             const _IDB_PFX = _INST_ID + '_';
             // ─────────────────────────────────────────────────────────────────
 
-            const WISP = (function () { try { return ls.getItem('gust:wisp:v1') || "wss://wisp.mercurywork.shop/"; } catch { return "wss://wisp.mercurywork.shop/"; } })();
+            let WISP = (function () { try { return ls.getItem('gust:wisp:v1') || "wss://wisp.mercurywork.shop/"; } catch { return "wss://wisp.mercurywork.shop/"; } })();
             const $ = s => document.getElementById(s);
             const frame = $("frame");
 
@@ -5107,7 +5234,7 @@
 
             const VALID_SETTINGS_SECTIONS = new Set([
                 'connection','search','privacy','cache','filesandmedia',
-                'appearance','homescreen','shortcuts','language','tutorial','about'
+                'appearance','homescreen','shortcuts','language','tutorial','about','fallback'
             ]);
 
             function isSettingsPage(url) {
@@ -5672,6 +5799,9 @@
                 }
 
                 activeTabId = tabId;
+                // Clear any lingering inspect-element highlight from the previous tab
+                const _prevHighlight = $('elemHighlightOverlay');
+                if (_prevHighlight) _prevHighlight.style.display = 'none';
                 pageUrl = tab.url;
                 hist = [...tab.history];
                 histIdx = tab.historyIndex;
@@ -6179,8 +6309,8 @@
             let wsSeq = 0;
             const wsMap = new Map();
 
-            let MAX_CONCURRENT = (function () { try { return parseInt(ls.getItem('gust:idlethreads:v1')) || 6; } catch { return 6; } })();
-            let MAX_CONCURRENT_ACTIVE = (function () { try { return parseInt(ls.getItem('gust:activethreads:v1')) || 9; } catch { return 9; } })();
+            let MAX_CONCURRENT = (function () { try { return parseInt(ls.getItem('gust:idlethreads:v1')) || 3; } catch { return 3; } })();
+            let MAX_CONCURRENT_ACTIVE = (function () { try { return parseInt(ls.getItem('gust:activethreads:v1')) || 6; } catch { return 6; } })();
             let _isPageLoading = false;
             let syncState = 1;
             let layoutChecksum = 0;
@@ -6287,7 +6417,7 @@
             function faviconFor(url) {
                 try {
                     const u = new URL(url);
-                    const proxyFavicons = (() => { try { return ls.getItem('gust:favicon-proxy:v1') === 'true'; } catch { return false; } })();
+                    const proxyFavicons = (() => { try { return ls.getItem('gust:favicon-proxy:v1') === '1'; } catch { return false; } })();
                     if (proxyFavicons) {
                         return '__proxy_favicon__' + encodeURIComponent(`https://www.google.com/s2/favicons?domain=${encodeURIComponent(u.hostname)}&sz=64`);
                     }
@@ -7781,20 +7911,7 @@
 
                         job.res(r);
                     } catch (e) {
-                        const ext = job.url.split('?')[0].split('.').pop().toLowerCase();
-                        const isCdnAsset = /woff2?|ttf|otf|eot|css|js/.test(ext) || job.priority <= PRIORITY.css;
-                        if (isCdnAsset && job.opts.method !== 'POST' && !job.opts?.signal?.aborted) {
-                            try {
-                                const r = await corsProxyFetch(job.url, job.opts?.signal);
-                                log(`<i class="fas fa-rotate" style="color:var(--warn)"></i>CORS fallback: ${job.url.replace(/^https?:\/\//, '').slice(0, 50)}`, "warn");
-                                memCache.set(job.url, { status: r.status, mime: r.mime, buf: r.buf, headers: r.headers });
-                                job.res(r);
-                            } catch (e2) {
-                                job.rej(e);
-                            }
-                        } else {
-                            job.rej(e);
-                        }
+                        job.rej(e);
                     } finally {
                         fetching--;
                         pendingRequests--;
@@ -7802,26 +7919,6 @@
                         runQueue();
                     }
                 }
-            }
-
-            async function corsProxyFetch(url, signal) {
-                const proxies = [
-                    'https://api.codetabs.com/v1/proxy/?quest=',
-                    'https://api.codetabs.com/v1/tmp/?quest=',
-                ];
-                for (const base of proxies) {
-                    try {
-                        const resp = await fetch(base + encodeURIComponent(url), { signal });
-                        if (!resp.ok) continue;
-                        const ct = resp.headers.get('content-type') || 'application/octet-stream';
-                        const mime = ct.split(';')[0].trim();
-                        const buf = await resp.arrayBuffer();
-                        return { status: resp.status, mime, buf, headers: {} };
-                    } catch (e) {
-                        if (e.name === 'AbortError') throw e;
-                    }
-                }
-                throw new Error('All CORS fallbacks failed');
             }
 
             async function doFetch(url, opts = {}) {
@@ -9904,7 +10001,7 @@ _VIEWER_DL_JS +
                 if (prevBlobUrl && prevBlobUrl.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(prevBlobUrl), 2000);
                 hideOverlay();
                 setTabTitle(title);
-                log(`<i class="fas fa-circle-check" style="color:var(--ok)"></i>Loaded: ` + url, 'ok');
+                log(`<i class="fas fa-circle-check" style="color:var(--ok)"></i>Loaded: ` + url + ` <span style="color:var(--tx3);font-size:11px;font-family:var(--mono)">via ${WISP.replace(/^wss?:\/\//, '').split('/')[0]}</span>`, 'ok');
                 addRecentSite(url);
                 updateBookmarkButton();
                 tabAbortControllers.delete(initiatorTabId);
@@ -9914,7 +10011,7 @@ _VIEWER_DL_JS +
             }
             // ─────────────────────────────────────────────────────────────
 
-            async function go(url, push = true, method = "GET", body = null) {
+            async function go(url, push = true, method = "GET", body = null, _isRetry = false) {
                 const initiatorTabId = activeTabId; 
 
                 frame.removeAttribute('srcdoc');
@@ -10064,7 +10161,7 @@ _VIEWER_DL_JS +
                 }
 
                 try {
-                    log(`<i class="fas fa-arrow-right" style="color:var(--ac)"></i>` + url, "info");
+                    log(`<i class="fas fa-arrow-right" style="color:var(--ac)"></i>` + url + ` <span style="color:var(--tx3);font-size:11px;font-family:var(--mono)">via ${WISP.replace(/^wss?:\/\//, '').split('/')[0]}</span>`, "info");
                     const opts = {
                         signal: tabCtrl.signal
                     };
@@ -10621,7 +10718,9 @@ _VIEWER_DL_JS +
                         setTimeout(() => URL.revokeObjectURL(prevBlobUrl), 2000);
                     }
                     hideOverlay();
-                    log(`<i class="fas fa-circle-check" style="color:var(--ok)"></i>Loaded: ` + url, "ok");
+                    if (!_isRetry) {
+                        log(`<i class="fas fa-circle-check" style="color:var(--ok)"></i>Loaded: ` + url + ` <span style="color:var(--tx3);font-size:11px;font-family:var(--mono)">via ${WISP.replace(/^wss?:\/\//, '').split('/')[0]}</span>`, "ok");
+                    }
                     addRecentSite(url);
                     updateBookmarkButton();
                     tabAbortControllers.delete(initiatorTabId);
@@ -10637,6 +10736,105 @@ _VIEWER_DL_JS +
                         log("Aborted", "warn");
                         return;
                     }
+
+                    // When called as a retry, propagate the error to the retry loop
+                    // rather than rendering an error page or spawning another retry sequence.
+                    if (_isRetry) throw e;
+
+                    // ── Fallback retry logic ──────────────────────────────────
+                    const _fbEnabled = (() => { try { return ls.getItem('gust:fallback:enabled') !== '0'; } catch { return true; } })();
+                    const _fbWisp    = (() => { try { return ls.getItem('gust:fallback:wisp') || ''; } catch { return ''; } })();
+                    const _fbRetries = (() => { try { return Math.max(1, parseInt(ls.getItem('gust:fallback:retries') || '3', 10)); } catch { return 3; } })();
+                    const _fbDelay   = (() => { try { return Math.max(0, parseInt(ls.getItem('gust:fallback:delay')   || '3', 10)); } catch { return 3; } })();
+                    const _fb5xx     = (() => { try { return ls.getItem('gust:fallback:5xx')     !== '0'; } catch { return true; } })();
+                    const _fbTimeout = (() => { try { return ls.getItem('gust:fallback:timeout') !== '0'; } catch { return true; } })();
+                    const _fbDns     = (() => { try { return ls.getItem('gust:fallback:dns')     === '1'; } catch { return false; } })();
+
+                    const _eMsg    = (e.message || '').toLowerCase();
+                    const _isDns     = _eMsg.includes('dns') || _eMsg.includes('getaddrinfo') || _eMsg.includes('name resolution');
+                    const _isTimeout = _eMsg.includes('timeout') || _eMsg.includes('timed out');
+                    const _is5xx     = _eMsg.includes('500') || _eMsg.includes('502') || _eMsg.includes('503') || _eMsg.includes('504') || _eMsg.includes('internal server');
+
+                    const _triggerMatches = (_isDns && _fbDns) || (_isTimeout && _fbTimeout) || (_is5xx && _fb5xx)
+                        || (!_isDns && !_isTimeout && !_is5xx); // generic errors always eligible
+
+                    const _mainRetries = (() => { try { return parseInt(ls.getItem('gust:main:retries')) || 3; } catch { return 3; } })();
+                    const _primaryHost = WISP.replace(/^wss?:\/\//, '').split('/')[0];
+
+                    if (!_isRetry && _triggerMatches && !tabAbortControllers.get(initiatorTabId)?.signal?.aborted) {
+
+                        // ── Phase 1: retry on primary WISP ──────────────────────
+                        log(`<i class="fas fa-rotate-left" style="color:var(--warn)"></i><span style="color:var(--warn)">Initial attempt failed (${_primaryHost}):</span> <span style="color:var(--tx3)">${e.message.slice(0, 55)}</span>`, 'warn');
+
+                        let _mainSuccess = false;
+                        for (let _mi = 0; _mi < _mainRetries; _mi++) {
+                            if (tabAbortControllers.get(initiatorTabId)?.signal?.aborted) break;
+                            try {
+                                log(`<i class="fas fa-rotate-left" style="color:var(--warn)"></i><span style="color:var(--warn)">Main retry ${_mi + 1}/${_mainRetries}</span> <span style="color:var(--tx3);font-family:var(--mono)">via ${_primaryHost}</span>`, 'warn');
+                                if (_fbDelay > 0 && _mi > 0) await new Promise(r => setTimeout(r, _fbDelay * 1000));
+                                if (tabAbortControllers.get(initiatorTabId)?.signal?.aborted) break;
+                                await go(url, false, method, body, true);
+                                _mainSuccess = true;
+                                log(`<i class="fas fa-circle-check" style="color:var(--ok)"></i>Loaded: ${url} <span style="color:var(--tx3);font-size:11px;font-family:var(--mono)">via ${_primaryHost} (main retry ${_mi + 1}/${_mainRetries})</span>`, 'ok');
+                                break;
+                            } catch (_mErr) {
+                                if (_mErr.name === 'AbortError') break;
+                                if (_mi + 1 < _mainRetries) {
+                                    log(`<i class="fas fa-circle-xmark" style="color:var(--err)"></i><span style="color:var(--err)">Main retry ${_mi + 1}/${_mainRetries} failed:</span> <span style="color:var(--tx3)">${_mErr.message.slice(0, 55)}</span>`, 'err');
+                                } else {
+                                    log(`<i class="fas fa-circle-xmark" style="color:var(--err)"></i><span style="color:var(--err)">All ${_mainRetries} main retries failed on ${_primaryHost}</span>${_fbEnabled && _fbWisp ? ' — switching to fallback' : ''}`, 'err');
+                                }
+                            }
+                        }
+                        if (_mainSuccess) return;
+                        if (tabAbortControllers.get(initiatorTabId)?.signal?.aborted) return;
+
+                        // ── Phase 2: switch to fallback WISP ────────────────────
+                        if (_fbEnabled && _fbWisp) {
+                            const _fbHost = _fbWisp.replace(/^wss?:\/\//, '').split('/')[0];
+                            log(`<i class="fas fa-rotate-left" style="color:var(--warn)"></i><span style="color:var(--warn)">Switching to fallback WISP</span> <span style="color:var(--tx3);font-family:var(--mono)">${_fbHost}</span>`, 'warn');
+
+                            // Switch libcurl to fallback WISP
+                            try {
+                                await libcurl.load_wasm();
+                                libcurl.set_websocket(_fbWisp);
+                                curl = new libcurl.HTTPSession();
+                                curl.set_connections(MAX_CONCURRENT, MAX_CONCURRENT, MAX_CONCURRENT);
+                            } catch (_swErr) {
+                                log(`<i class="fas fa-circle-xmark" style="color:var(--err)"></i><span style="color:var(--err)">Failed to switch to fallback WISP:</span> <span style="color:var(--tx3)">${_swErr.message.slice(0, 55)}</span>`, 'err');
+                            }
+
+                            let _fbSuccess = false;
+                            for (let _ri = 0; _ri < _fbRetries; _ri++) {
+                                if (tabAbortControllers.get(initiatorTabId)?.signal?.aborted) break;
+                                try {
+                                    log(`<i class="fas fa-rotate-left" style="color:var(--warn)"></i><span style="color:var(--warn)">Fallback retry ${_ri + 1}/${_fbRetries}</span> <span style="color:var(--tx3);font-family:var(--mono)">via ${_fbHost}</span>${_fbDelay > 0 && _ri > 0 ? ` <span style="color:var(--tx3)">(after ${_fbDelay}s)</span>` : ''}`, 'warn');
+                                    if (_fbDelay > 0 && _ri > 0) await new Promise(r => setTimeout(r, _fbDelay * 1000));
+                                    if (tabAbortControllers.get(initiatorTabId)?.signal?.aborted) break;
+                                    await go(url, false, method, body, true);
+                                    _fbSuccess = true;
+                                    log(`<i class="fas fa-circle-check" style="color:var(--ok)"></i>Loaded: ${url} <span style="color:var(--tx3);font-size:11px;font-family:var(--mono)">via ${_fbHost} (fallback retry ${_ri + 1}/${_fbRetries})</span>`, 'ok');
+                                    // Restore primary WISP for subsequent requests
+                                    try { await libcurl.load_wasm(); libcurl.set_websocket(WISP); curl = new libcurl.HTTPSession(); curl.set_connections(MAX_CONCURRENT, MAX_CONCURRENT, MAX_CONCURRENT); } catch(_re) {}
+                                    break;
+                                } catch (_fbErr) {
+                                    if (_fbErr.name === 'AbortError') break;
+                                    if (_ri + 1 < _fbRetries) {
+                                        log(`<i class="fas fa-circle-xmark" style="color:var(--err)"></i><span style="color:var(--err)">Fallback retry ${_ri + 1}/${_fbRetries} failed:</span> <span style="color:var(--tx3)">${_fbErr.message.slice(0, 55)}</span>`, 'err');
+                                    } else {
+                                        log(`<i class="fas fa-circle-xmark" style="color:var(--err)"></i><span style="color:var(--err)">All ${_fbRetries} fallback retries failed — ${_fbHost} also unavailable</span>`, 'err');
+                                        // Restore primary WISP before showing error page
+                                        try { await libcurl.load_wasm(); libcurl.set_websocket(WISP); curl = new libcurl.HTTPSession(); curl.set_connections(MAX_CONCURRENT, MAX_CONCURRENT, MAX_CONCURRENT); } catch(_re) {}
+                                    }
+                                }
+                            }
+                            if (_fbSuccess) return;
+                        } else if (_fbEnabled && !_fbWisp) {
+                            log(`<i class="fas fa-triangle-exclamation" style="color:var(--warn)"></i><span style="color:var(--warn)">Fallback enabled but no fallback WISP configured</span> — set one in Settings → Fallback`, 'warn');
+                        }
+                    }
+                    // ─────────────────────────────────────────────────────────
+
                     log("Failed: " + e.message, "err");
                     progressBar.classList.add("error");
                     hideOverlay();
@@ -11722,7 +11920,7 @@ _VIEWER_DL_JS +
                         libcurl.set_websocket(WISP);
                         curl = new libcurl.HTTPSession();
                         curl.set_connections(MAX_CONCURRENT, MAX_CONCURRENT, MAX_CONCURRENT);
-                        log(`Ready! (${MAX_CONCURRENT} connections, 1h cache)`, "ok");
+                        log(`Ready! (${MAX_CONCURRENT} connections, 1h cache) <span style="color:var(--tx3);font-size:11px;font-family:var(--mono)">via ${WISP.replace(/^wss?:\/\//, '').split('/')[0]}</span>`, "ok");
                     } catch (e) {
                         log("libcurl failed to load: " + e.message, "err");
                         log("Browser will work in limited mode", "warn");
@@ -11795,8 +11993,10 @@ _VIEWER_DL_JS +
                 const navBtn = document.querySelector(`.settings-nav-item[data-section="${section}"]`);
                 if (navBtn) navBtn.classList.add('active');
 
+                const sectionElKey = section === 'tutorial' ? 'tutorial-page' : section;
+
                 document.querySelectorAll('.settings-section').forEach(s => s.style.display = 'none');
-                const targetSection = document.querySelector(`.settings-section[data-section="${section}"]`);
+                const targetSection = document.querySelector(`.settings-section[data-section="${sectionElKey}"]`);
                 if (targetSection) {
                     targetSection.style.display = 'flex';
                     // Scroll content pane to top on section change
@@ -11871,8 +12071,21 @@ _VIEWER_DL_JS +
                 const wispInput = $("settingsWispInput");
                 const wispStatus = $("settingsWispStatus");
 
+                async function applyWispUrl(val) {
+                    WISP = val;
+                    try {
+                        await libcurl.load_wasm();
+                        libcurl.set_websocket(val);
+                        curl = new libcurl.HTTPSession();
+                        curl.set_connections(MAX_CONCURRENT, MAX_CONCURRENT, MAX_CONCURRENT);
+                        log(`WISP switched to <span style="color:var(--tx3);font-size:11px;font-family:var(--mono)">${val.replace(/^wss?:\/\//, '').split('/')[0]}</span>`, 'ok');
+                    } catch (e) {
+                        log('WISP reconnect failed: ' + e.message, 'err');
+                    }
+                }
+
                 if (wispSave && wispInput) {
-                    wispSave.onclick = () => {
+                    wispSave.onclick = async () => {
                         const val = (wispInput.value || "").trim();
                         if (!val || !val.startsWith("wss")) {
                             showStatusMsg(wispStatus, "Must start with wss://", "err");
@@ -11880,19 +12093,23 @@ _VIEWER_DL_JS +
                         }
                         try {
                             ls.setItem('gust:wisp:v1', val);
-                            showStatusMsg(wispStatus, "WISP URL saved! Reload to apply.", "ok");
+                            showStatusMsg(wispStatus, "Saved — applying...", "ok");
+                            await applyWispUrl(val);
+                            showStatusMsg(wispStatus, "Saved & connected!", "ok");
                         } catch (e) {
                             showStatusMsg(wispStatus, "Failed to save WISP URL", "err");
                         }
                     };
                 }
                 if (wispReset && wispInput) {
-                    wispReset.onclick = () => {
+                    wispReset.onclick = async () => {
                         const defaultWisp = "wss://wisp.mercurywork.shop/";
                         wispInput.value = defaultWisp;
                         try {
                             ls.setItem('gust:wisp:v1', defaultWisp);
-                            showStatusMsg(wispStatus, "Reset to default! Reload to apply.", "ok");
+                            showStatusMsg(wispStatus, "Reset — applying...", "ok");
+                            await applyWispUrl(defaultWisp);
+                            showStatusMsg(wispStatus, "Reset & connected!", "ok");
                         } catch (e) {
                             showStatusMsg(wispStatus, "Failed to reset WISP URL", "err");
                         }
@@ -13485,6 +13702,79 @@ _VIEWER_DL_JS +
                     const isOn = sw.classList.toggle('on');
                     try { ls.setItem('gust:autoFullscreen', isOn ? '1' : '0'); } catch(e) {}
                 });
+            }, 400);
+            // ─────────────────────────────────────────────────────────────────
+
+            // ─────────────────────────────────────────────────────────────────
+
+            // Wire up Fallback settings
+            setTimeout(() => {
+                // Toggle switches
+                const fallbackSwitches = [
+                    { id: 'fallbackEnabledSwitch',  key: 'gust:fallback:enabled',  def: '1' },
+                    { id: 'fallback5xxSwitch',      key: 'gust:fallback:5xx',      def: '1' },
+                    { id: 'fallbackTimeoutSwitch',  key: 'gust:fallback:timeout',  def: '1' },
+                    { id: 'fallbackDnsSwitch',      key: 'gust:fallback:dns',      def: '0' },
+                ];
+                fallbackSwitches.forEach(({ id, key, def }) => {
+                    const sw = document.getElementById(id);
+                    if (!sw) return;
+                    try {
+                        const val = ls.getItem(key);
+                        if ((val === null ? def : val) === '1') sw.classList.add('on');
+                        else sw.classList.remove('on');
+                    } catch(e) {}
+                    sw.addEventListener('click', () => {
+                        const isOn = sw.classList.toggle('on');
+                        try { ls.setItem(key, isOn ? '1' : '0'); } catch(e) {}
+                    });
+                });
+
+                // Fallback WISP URL
+                const fbInput  = document.getElementById('settingsFallbackWispInput');
+                const fbSave   = document.getElementById('settingsFallbackWispSave');
+                const fbReset  = document.getElementById('settingsFallbackWispReset');
+                const fbStatus = document.getElementById('settingsFallbackWispStatus');
+                if (fbInput) {
+                    try { fbInput.value = ls.getItem('gust:fallback:wisp') || ''; } catch(e) {}
+                }
+                if (fbSave) {
+                    fbSave.addEventListener('click', () => {
+                        try {
+                            const v = fbInput ? fbInput.value.trim() : '';
+                            if (v) ls.setItem('gust:fallback:wisp', v);
+                            else   ls.removeItem('gust:fallback:wisp');
+                            if (fbStatus) showStatusMsg(fbStatus, 'Saved.', 'ok');
+                        } catch(e) {}
+                    });
+                }
+                if (fbReset) {
+                    fbReset.addEventListener('click', () => {
+                        try { ls.removeItem('gust:fallback:wisp'); } catch(e) {}
+                        if (fbInput) fbInput.value = '';
+                        if (fbStatus) showStatusMsg(fbStatus, 'Cleared.', 'ok');
+                    });
+                }
+
+                // Retry counter helpers
+                const makeCounter = (minusId, plusId, valId, key, min, max, def) => {
+                    const minusBtn = document.getElementById(minusId);
+                    const plusBtn  = document.getElementById(plusId);
+                    const valEl    = document.getElementById(valId);
+                    if (!minusBtn || !plusBtn || !valEl) return;
+                    let current = parseInt((() => { try { return ls.getItem(key); } catch(e) { return null; } })() || def, 10);
+                    if (isNaN(current)) current = parseInt(def, 10);
+                    valEl.textContent = current;
+                    minusBtn.addEventListener('click', () => {
+                        if (current > min) { current--; valEl.textContent = current; try { ls.setItem(key, String(current)); } catch(e) {} }
+                    });
+                    plusBtn.addEventListener('click', () => {
+                        if (current < max) { current++; valEl.textContent = current; try { ls.setItem(key, String(current)); } catch(e) {} }
+                    });
+                };
+                makeCounter('mainRetryMinus',     'mainRetryPlus',     'mainRetryVal',     'gust:main:retries',     1, 10, '3');
+                makeCounter('fallbackRetryMinus', 'fallbackRetryPlus', 'fallbackRetryVal', 'gust:fallback:retries', 1, 10, '3');
+                makeCounter('fallbackDelayMinus', 'fallbackDelayPlus', 'fallbackDelayVal', 'gust:fallback:delay',   0,  30, '3');
             }, 400);
             // ─────────────────────────────────────────────────────────────────
 
