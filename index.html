@@ -1495,11 +1495,15 @@
         }
 
         .element-toggle.collapsed::before {
-            content: '▶';
+            content: '\f054';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
         }
 
         .element-toggle.expanded::before {
-            content: '▶';
+            content: '\f054';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
             display: inline-block;
             transform: rotate(90deg);
         }
@@ -5251,8 +5255,9 @@
                 return true;
             }
 
-            function renderErrorPage(url, errorType, errorCode, errorDescription, errorSuggestions) {
-                const suggestionsHTML = (errorSuggestions || []).map(s => `<li>${s}</li>`).join("");
+            function renderErrorPage(url, errorType, errorCode, errorDescription, errorSuggestions, errorReasons) {
+                const suggestionsHTML = (errorSuggestions || []).map(s => `<li><i class="fas fa-arrow-right"></i><span>${s}</span></li>`).join("");
+                const reasonsHTML = (errorReasons || []).map(r => `<li><i class="fas fa-circle-question"></i><span>${r}</span></li>`).join("");
                 frame.srcdoc = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5390,17 +5395,29 @@
             font-size: 15px;
         }
         
-        .error-suggestions {
+        .error-boxes-row {
+            display: flex;
+            gap: 16px;
+            width: 100%;
+            max-width: 860px;
+            align-items: stretch;
+        }
+
+        .error-suggestions,
+        .error-reasons {
             text-align: left;
             background: rgba(255, 255, 255, 0.03);
-            padding: 24px 32px;
+            padding: 24px 28px;
             border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            width: 100%;
-            max-width: 500px;
+            border: 1px solid #9de5ff;
+            flex: 1 1 0;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
         }
         
-        .error-suggestions h3 {
+        .error-suggestions h3,
+        .error-reasons h3 {
             font-size: 14px;
             font-weight: 600;
             color: #9de5ff;
@@ -5409,23 +5426,49 @@
             letter-spacing: 0.5px;
         }
         
-        .error-suggestions ul {
+        .error-suggestions ul,
+        .error-reasons ul {
             list-style: none;
+            flex: 1;
+            overflow-y: scroll;
+            max-height: calc(14px * 1.6 * 3.5);
+            scrollbar-width: auto;
+            scrollbar-color: #9de5ff rgba(157,229,255,0.1);
+        }
+
+        .error-suggestions ul::-webkit-scrollbar,
+        .error-reasons ul::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .error-suggestions ul::-webkit-scrollbar-track,
+        .error-reasons ul::-webkit-scrollbar-track {
+            background: rgba(157,229,255,0.1);
+            border-radius: 4px;
+        }
+
+        .error-suggestions ul::-webkit-scrollbar-thumb,
+        .error-reasons ul::-webkit-scrollbar-thumb {
+            background: #9de5ff;
+            border-radius: 4px;
         }
         
-        .error-suggestions li {
-            position: relative;
-            padding-left: 20px;
-            margin-bottom: 8px;
+        .error-suggestions li,
+        .error-reasons li {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
             color: #b8c4d0;
             font-size: 14px;
+            line-height: 1.6;
         }
-        
-        .error-suggestions li::before {
-            content: '•';
-            position: absolute;
-            left: 0;
+
+        .error-suggestions li i,
+        .error-reasons li i {
             color: #70d4ff;
+            font-size: 13px;
+            margin-top: 3px;
+            flex-shrink: 0;
         }
         
         .error-actions {
@@ -5473,7 +5516,7 @@
             transform: translateY(-1px);
         }
         
-        @media (max-width: 600px) {
+        @media (max-width: 700px) {
             body {
                 padding: 12px;
             }
@@ -5503,6 +5546,11 @@
             .error-icon i {
                 font-size: 28px;
             }
+
+            .error-boxes-row {
+                flex-direction: column;
+                max-width: 100%;
+            }
         }
     </style>
 </head>
@@ -5527,12 +5575,22 @@
             ${errorDescription}
         </div>
 
-        ${suggestionsHTML ? `
-        <div class="error-suggestions">
-            <h3>Try these steps</h3>
-            <ul>
-                ${suggestionsHTML}
-            </ul>
+        ${(suggestionsHTML || reasonsHTML) ? `
+        <div class="error-boxes-row">
+            ${suggestionsHTML ? `
+            <div class="error-suggestions">
+                <h3>Try This</h3>
+                <ul>
+                    ${suggestionsHTML}
+                </ul>
+            </div>` : ''}
+            ${reasonsHTML ? `
+            <div class="error-reasons">
+                <h3>Possible Reasons</h3>
+                <ul>
+                    ${reasonsHTML}
+                </ul>
+            </div>` : ''}
         </div>` : ''}
         
         <div class="error-actions">
@@ -8032,7 +8090,7 @@
                 while (resp.status >= 300 && resp.status < 400 && resp.headers?.get?.("location") && redirectCount < 12) {
                     const loc = resp.headers.get("location");
                     const nextUrl = new URL(loc, url).href;
-                    log(`<i class="fas fa-arrow-right-arrow-left" style="color:var(--warn)"></i><span style="color:var(--tx3)">${resp.status}</span> → ${nextUrl.slice(0, 60)}`, "warn");
+                    log(`<i class="fas fa-arrow-right-arrow-left" style="color:var(--warn)"></i><span style="color:var(--tx3)">${resp.status}</span> <i class="fas fa-arrow-right" style="color:var(--warn);font-size:10px;"></i> ${nextUrl.slice(0, 60)}`, "warn");
                     url = nextUrl;
                     origin = new URL(url).origin;
                     const nextCookie = getCookieHeader(origin);
@@ -10038,7 +10096,8 @@ _VIEWER_DL_JS +
                                 "Unknown Settings Page",
                                 "ERR_INVALID_GUST_SETTINGS",
                                 `The settings page <code>${url}</code> does not exist.`,
-                                ["Check for typos in the address", "Valid settings pages: " + [...VALID_SETTINGS_SECTIONS].join(", ")]
+                                ["Check the URL for typos — valid sections are: " + [...VALID_SETTINGS_SECTIONS].join(", ")],
+                                ["A gust:// settings URL was entered with an unrecognized section name"]
                             );
                             setTabTitle("Settings — Not Found");
                             isErrorPage = true;
@@ -10066,18 +10125,26 @@ _VIEWER_DL_JS +
 
                 isErrorPage = false;
 
-                const prevCtrl = tabAbortControllers.get(initiatorTabId);
-                if (prevCtrl) prevCtrl.abort();
-                const tabCtrl = new AbortController();
-                tabAbortControllers.set(initiatorTabId, tabCtrl);
-                if (initiatorTabId === activeTabId) abortCtrl = tabCtrl;
+                let tabCtrl;
+                if (!_isRetry) {
+                    const prevCtrl = tabAbortControllers.get(initiatorTabId);
+                    if (prevCtrl) prevCtrl.abort();
+                    tabCtrl = new AbortController();
+                    tabAbortControllers.set(initiatorTabId, tabCtrl);
+                    if (initiatorTabId === activeTabId) abortCtrl = tabCtrl;
 
-                if (activeTabId === initiatorTabId && !isInvalidInternal(url)) {
-                    frame.onload = null;
-                    frame.src = 'about:blank';
+                    if (activeTabId === initiatorTabId && !isInvalidInternal(url)) {
+                        frame.onload = null;
+                        frame.src = 'about:blank';
+                    }
+
+                    if (initiatorTabId === activeTabId) { abortAllRequests(); closeAllSockets(); }
+                } else {
+                    // Reuse the existing abort controller — retries share the same
+                    // cancellation signal and must not blank the frame or kill
+                    // in-flight sub-resource requests mid-retry.
+                    tabCtrl = tabAbortControllers.get(initiatorTabId) || new AbortController();
                 }
-
-                if (initiatorTabId === activeTabId) { abortAllRequests(); closeAllSockets(); }
 
                 const currentTab = getActiveTab();
                 if (currentTab) {
@@ -10096,7 +10163,8 @@ _VIEWER_DL_JS +
                             "Invalid Internal URL",
                             "ERR_INVALID_GUST_URL",
                             `The internal address <code>${url}</code> is not a valid Gust page.`,
-                            ["Check for typos in the address", "Use the Home button to return to the search page", "Common pages: gust://newtab, gust://settings"]
+                            ["Use the Home button to return to the new tab page — valid pages are gust://newtab and gust://settings"],
+                            ["A gust:// address was entered manually with an unrecognized path"]
                         );
 
                         setTabTitle("Invalid URL");
@@ -10121,7 +10189,7 @@ _VIEWER_DL_JS +
                     return;
                 }
 
-                if (activeTabId === initiatorTabId) {
+                if (!_isRetry && activeTabId === initiatorTabId) {
                     hideNewTab();
                     hideSettingsPage();
                     pageUrl = url;
@@ -10764,7 +10832,7 @@ _VIEWER_DL_JS +
                     if (!_isRetry && _triggerMatches && !tabAbortControllers.get(initiatorTabId)?.signal?.aborted) {
 
                         // ── Phase 1: retry on primary WISP ──────────────────────
-                        log(`<i class="fas fa-rotate-left" style="color:var(--warn)"></i><span style="color:var(--warn)">Initial attempt failed (${_primaryHost}):</span> <span style="color:var(--tx3)">${e.message.slice(0, 55)}</span>`, 'warn');
+                        log(`<i class="fas fa-rotate-left" style="color:var(--warn)"></i><span style="color:var(--warn)">Initial attempt failed (${_primaryHost}):</span> <span style="color:var(--tx3)">${e.message}</span>`, 'warn');
 
                         let _mainSuccess = false;
                         for (let _mi = 0; _mi < _mainRetries; _mi++) {
@@ -10780,7 +10848,7 @@ _VIEWER_DL_JS +
                             } catch (_mErr) {
                                 if (_mErr.name === 'AbortError') break;
                                 if (_mi + 1 < _mainRetries) {
-                                    log(`<i class="fas fa-circle-xmark" style="color:var(--err)"></i><span style="color:var(--err)">Main retry ${_mi + 1}/${_mainRetries} failed:</span> <span style="color:var(--tx3)">${_mErr.message.slice(0, 55)}</span>`, 'err');
+                                    log(`<i class="fas fa-circle-xmark" style="color:var(--err)"></i><span style="color:var(--err)">Main retry ${_mi + 1}/${_mainRetries} failed:</span> <span style="color:var(--tx3)">${_mErr.message}</span>`, 'err');
                                 } else {
                                     log(`<i class="fas fa-circle-xmark" style="color:var(--err)"></i><span style="color:var(--err)">All ${_mainRetries} main retries failed on ${_primaryHost}</span>${_fbEnabled && _fbWisp ? ' — switching to fallback' : ''}`, 'err');
                                 }
@@ -10801,7 +10869,7 @@ _VIEWER_DL_JS +
                                 curl = new libcurl.HTTPSession();
                                 curl.set_connections(MAX_CONCURRENT, MAX_CONCURRENT, MAX_CONCURRENT);
                             } catch (_swErr) {
-                                log(`<i class="fas fa-circle-xmark" style="color:var(--err)"></i><span style="color:var(--err)">Failed to switch to fallback WISP:</span> <span style="color:var(--tx3)">${_swErr.message.slice(0, 55)}</span>`, 'err');
+                                log(`<i class="fas fa-circle-xmark" style="color:var(--err)"></i><span style="color:var(--err)">Failed to switch to fallback WISP:</span> <span style="color:var(--tx3)">${_swErr.message}</span>`, 'err');
                             }
 
                             let _fbSuccess = false;
@@ -10820,7 +10888,7 @@ _VIEWER_DL_JS +
                                 } catch (_fbErr) {
                                     if (_fbErr.name === 'AbortError') break;
                                     if (_ri + 1 < _fbRetries) {
-                                        log(`<i class="fas fa-circle-xmark" style="color:var(--err)"></i><span style="color:var(--err)">Fallback retry ${_ri + 1}/${_fbRetries} failed:</span> <span style="color:var(--tx3)">${_fbErr.message.slice(0, 55)}</span>`, 'err');
+                                        log(`<i class="fas fa-circle-xmark" style="color:var(--err)"></i><span style="color:var(--err)">Fallback retry ${_ri + 1}/${_fbRetries} failed:</span> <span style="color:var(--tx3)">${_fbErr.message}</span>`, 'err');
                                     } else {
                                         log(`<i class="fas fa-circle-xmark" style="color:var(--err)"></i><span style="color:var(--err)">All ${_fbRetries} fallback retries failed — ${_fbHost} also unavailable</span>`, 'err');
                                         // Restore primary WISP before showing error page
@@ -10830,12 +10898,12 @@ _VIEWER_DL_JS +
                             }
                             if (_fbSuccess) return;
                         } else if (_fbEnabled && !_fbWisp) {
-                            log(`<i class="fas fa-triangle-exclamation" style="color:var(--warn)"></i><span style="color:var(--warn)">Fallback enabled but no fallback WISP configured</span> — set one in Settings → Fallback`, 'warn');
+                            log(`<i class="fas fa-triangle-exclamation" style="color:var(--warn)"></i><span style="color:var(--warn)">Fallback enabled but no fallback WISP configured</span> — set one in Settings <i class="fas fa-arrow-right" style="font-size:10px;color:var(--tx3);"></i> Fallback`, 'warn');
                         }
                     }
                     // ─────────────────────────────────────────────────────────
 
-                    log("Failed: " + e.message, "err");
+                    log(`<i class="fas fa-circle-xmark" style="color:var(--err)"></i><span style="color:var(--err)">Failed:</span> <span style="color:var(--tx3)">${e.message}</span>`, "err");
                     progressBar.classList.add("error");
                     hideOverlay();
                     setStatus("error", "Error");
@@ -10845,118 +10913,139 @@ _VIEWER_DL_JS +
                     let errorCode = "";
                     let errorDescription = "";
                     let errorSuggestions = [];
+                    let errorReasons = [];
 
                     const errorMsg = e.message.toLowerCase();
 
-                    if (errorMsg.includes("dns") || errorMsg.includes("getaddrinfo") || errorMsg.includes("name resolution")) {
+                    if (errorMsg.includes("dns") || errorMsg.includes("getaddrinfo") || errorMsg.includes("name resolution") || errorMsg.includes("could not resolve") || errorMsg.includes("error code 6") || errorMsg.includes("resolve host")) {
                         errorType = "DNS Resolution Failed";
                         errorCode = "ERR_NAME_NOT_RESOLVED";
-                        errorDescription = "The domain name could not be resolved. The website's address might be incorrect or the DNS server is unavailable.";
+                        errorDescription = "The domain name could not be resolved. The website's address might be incorrect, or the DNS server is unavailable.";
                         errorSuggestions = [
-                            "Check if the URL is spelled correctly",
-                            "Try accessing the site later",
-                            "Check your DNS settings",
-                            "Try using a different DNS server (e.g., 8.8.8.8)"
+                            "Double-check the URL spelling, then open Settings &gt; Connection and confirm your Wisp server URL is correct"
                         ];
-                    } else if (errorMsg.includes("timeout") || errorMsg.includes("timed out")) {
+                        errorReasons = [
+                            "The domain doesn't exist or was typed incorrectly",
+                            "Your Wisp server can't reach a DNS resolver",
+                            "A DNS filter or firewall on your network may be blocking the connection to Wisp"
+                        ];
+                    } else if (errorMsg.includes("timeout") || errorMsg.includes("timed out") || errorMsg.includes("error code 28")) {
                         errorType = "Connection Timeout";
                         errorCode = "ERR_CONNECTION_TIMED_OUT";
                         errorDescription = "The server took too long to respond. This could be due to a slow connection, server issues, or network problems.";
                         errorSuggestions = [
-                            "Check your internet connection",
-                            "Try reloading the page",
-                            "The server might be experiencing high traffic",
-                            "Try again in a few moments"
+                            "Reload the page — if it keeps timing out, raise the retry count in Settings &gt; Connection"
                         ];
-                    } else if (errorMsg.includes("refused") || errorMsg.includes("econnrefused")) {
-                        errorType = "Connection Refused";
+                        errorReasons = [
+                            "The destination server is overloaded or temporarily unavailable",
+                            "Your Wisp server is experiencing high latency",
+                            "A firewall or network filter may be slowing or blocking the connection"
+                        ];
+                    } else if (errorMsg.includes("refused") || errorMsg.includes("econnrefused") || errorMsg.includes("could not connect") || errorMsg.includes("error code 7")) {
+                        errorType = "Could Not Connect to Server";
                         errorCode = "ERR_CONNECTION_REFUSED";
-                        errorDescription = "The server refused to connect. The website might be down or blocking connections.";
+                        errorDescription = "Gust couldn't establish a connection. The server may be down, or something on your network may be blocking the connection to Wisp.";
                         errorSuggestions = [
-                            "Check if the website is down for everyone",
-                            "The site might be temporarily unavailable",
-                            "Try accessing the site later",
-                            "Check your firewall settings"
+                            "Check if the site is down for everyone at downdetector.com, then try again — or check your Wisp server URL in Settings &gt; Connection"
                         ];
-                    } else if (errorMsg.includes("ssl") || errorMsg.includes("tls") || errorMsg.includes("certificate")) {
+                        errorReasons = [
+                            "A DNS filter or firewall on your network may be blocking the connection to Wisp",
+                            "You may be disconnected from Wi-Fi or your internet connection dropped",
+                            "The Wisp server may be offline or the URL may be incorrect",
+                            "The destination server is not listening on that port"
+                        ];
+                    } else if (errorMsg.includes("ssl") || errorMsg.includes("tls") || errorMsg.includes("certificate") || errorMsg.includes("error code 35") || errorMsg.includes("error code 51") || errorMsg.includes("error code 60")) {
                         errorType = "SSL/TLS Error";
                         errorCode = "ERR_SSL_PROTOCOL_ERROR";
                         errorDescription = "There was a problem with the website's security certificate or SSL/TLS connection.";
                         errorSuggestions = [
-                            "The website's certificate might be invalid or expired",
-                            "Try accessing the HTTP version (not recommended)",
-                            "Check your system date and time",
-                            "The site might be using outdated security protocols"
+                            "Verify your system clock shows the correct date and time — a wrong clock is the most common cause of SSL errors"
+                        ];
+                        errorReasons = [
+                            "The site's SSL certificate is expired or self-signed",
+                            "The server uses a TLS version that is no longer accepted",
+                            "Your system clock may be set to the wrong date or time"
                         ];
                     } else if (errorMsg.includes("network") || errorMsg.includes("offline")) {
                         errorType = "Network Error";
                         errorCode = "ERR_NETWORK_CHANGED";
                         errorDescription = "A network error occurred. You might be offline or your connection was interrupted.";
                         errorSuggestions = [
-                            "Check your internet connection",
-                            "Try reconnecting to your network",
-                            "Check if other sites load correctly",
-                            "Restart your router if the problem persists"
+                            "Check your Wi-Fi or ethernet connection, then reload — if nothing loads, try restarting your router"
+                        ];
+                        errorReasons = [
+                            "Your device lost its internet connection or switched networks mid-request",
+                            "The Wisp WebSocket tunnel was dropped due to the network change",
+                            "You may be disconnected from Wi-Fi"
                         ];
                     } else if (errorMsg.includes("blocked") || errorMsg.includes("cors")) {
                         errorType = "Request Blocked";
                         errorCode = "ERR_BLOCKED_BY_CLIENT";
-                        errorDescription = "The request was blocked, possibly by CORS policy or security settings.";
+                        errorDescription = "The request was blocked, possibly by a CORS policy, security settings, or a browser extension.";
                         errorSuggestions = [
-                            "The website might not support proxy access",
-                            "Try accessing the site directly",
-                            "Check your privacy/security settings",
-                            "Some sites block proxy connections"
+                            "Disable browser extensions that intercept requests, or check if the site explicitly blocks proxy connections"
+                        ];
+                        errorReasons = [
+                            "The site's CORS or Content Security Policy rejected the proxied request",
+                            "A local browser extension blocked the request before it was sent",
+                            "A network-level filter or firewall is intercepting the connection"
                         ];
                     } else if (errorMsg.includes("404") || errorMsg.includes("not found")) {
                         errorType = "Page Not Found";
-                        errorCode = "HTTP 404";
+                        errorCode = "HTTP_404_NOT_FOUND";
                         errorDescription = "The requested page could not be found on the server.";
                         errorSuggestions = [
-                            "Check the URL for typos",
-                            "The page might have been moved or deleted",
-                            "Try going to the website's home page",
-                            "Search for the page using a search engine"
+                            "Go to the site's home page and navigate from there, or search for the page title in a search engine"
+                        ];
+                        errorReasons = [
+                            "The page was deleted or moved to a new URL",
+                            "The link you followed contained a typo or is outdated"
                         ];
                     } else if (errorMsg.includes("500") || errorMsg.includes("internal server")) {
                         errorType = "Internal Server Error";
-                        errorCode = "HTTP 500";
+                        errorCode = "HTTP_500_INTERNAL_SERVER_ERROR";
                         errorDescription = "The server encountered an error and could not complete your request.";
                         errorSuggestions = [
-                            "Try reloading the page",
-                            "The server might be temporarily down",
-                            "Try again in a few minutes",
-                            "Contact the website administrator if the problem persists"
+                            "Wait 30–60 seconds and reload — if it persists, check the site's status page for a known outage"
+                        ];
+                        errorReasons = [
+                            "The web server crashed or encountered an unhandled exception",
+                            "A backend service the site depends on (database, API) is currently down"
                         ];
                     } else if (errorMsg.includes("403") || errorMsg.includes("forbidden")) {
                         errorType = "Access Forbidden";
-                        errorCode = "HTTP 403";
+                        errorCode = "HTTP_403_FORBIDDEN";
                         errorDescription = "You don't have permission to access this resource.";
                         errorSuggestions = [
-                            "You might need to log in",
-                            "The page might be restricted",
-                            "Check if you have the necessary permissions",
-                            "Contact the website administrator"
+                            "Try logging in to the site — if already logged in, the resource may require a higher-tier account"
                         ];
-                    } else if (errorMsg.includes("aborted") || errorMsg.includes("operation")) {
+                        errorReasons = [
+                            "Your session expired or you are not logged in",
+                            "The site is blocking the Wisp server's IP address from accessing this resource",
+                            "The resource requires permissions you don't have"
+                        ];
+                    } else if (errorMsg.includes("aborted")) {
                         errorType = "Connection Interrupted";
                         errorCode = "ERR_CONNECTION_ABORTED";
-                        errorDescription = "The connection to the proxy server was interrupted. GUST will attempt to reconnect automatically on the next request.";
+                        errorDescription = "The connection to the proxy server was interrupted. Gust will attempt to reconnect automatically on the next request.";
                         errorSuggestions = [
-                            "Click the reload button to try again",
-                            "The proxy server may have briefly disconnected",
-                            "Check that your WISP server is running",
-                            "Try reloading the page - the connection should auto-recover"
+                            "Open Settings &gt; Connection and update your Wisp URL to an active server, then reload"
+                        ];
+                        errorReasons = [
+                            "The Wisp WebSocket was forcibly closed — the server went offline or restarted",
+                            "The Wisp URL may no longer be valid",
+                            "A firewall or DNS filter on your network may have blocked the connection mid-session"
                         ];
                     } else {
                         errorType = "Error Loading Page";
-                        errorCode = e.message;
-                        errorDescription = "An error occurred while trying to load this page.";
+                        errorCode = "ERR_UNKNOWN";
+                        errorDescription = "An error occurred while trying to load this page: " + e.message.slice(0, 120);
                         errorSuggestions = [
-                            "Try reloading the page",
-                            "Check your internet connection",
-                            "Try accessing the site later",
-                            "Clear your cache in settings"
+                            "Open the Logs panel below to read the raw error, then check your Wisp connection in Settings &gt; Connection"
+                        ];
+                        errorReasons = [
+                            "An unexpected error occurred that doesn't match a known pattern",
+                            "It may be a one-off glitch or a Wisp connection issue"
                         ];
                     }
 
@@ -10964,7 +11053,7 @@ _VIEWER_DL_JS +
                     const errTab = tabs.find(t => t.id === initiatorTabId);
                     if (errTab) errTab.hasError = true;
                     if (!tabs.find(t => t.id === initiatorTabId)) return; 
-                    renderErrorPage(pageUrl, errorType, errorCode, errorDescription, errorSuggestions);
+                    renderErrorPage(pageUrl, errorType, errorCode, errorDescription, errorSuggestions, errorReasons);
                     updateSecurityChip(pageUrl, 'error');
                     renderTabs();
                 }
