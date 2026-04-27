@@ -4091,25 +4091,6 @@
                                 </div>
 
                                 <div class="settings-card">
-                                    <div class="settings-card-head"><i class="fas fa-code"></i> JavaScript Proxy</div>
-                                    <div class="settings-card-body">
-                                        <div class="settings-switch-row">
-                                            <div>
-                                                <div class="settings-switch-label">Proxy scripts through Gust</div>
-                                                <div class="settings-hint">Fetches page scripts through the proxy
-                                                    pipeline so they aren't blocked by CORS. Disable if a site breaks
-                                                    unexpectedly.</div>
-                                            </div>
-                                            <div class="settings-switch on" id="settingsJsProxySwitch">
-                                                <div class="settings-switch-track">
-                                                    <div class="settings-switch-thumb"></div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="settings-card">
                                     <div class="settings-card-head"><i class="fas fa-user-secret"></i> User-Agent Spoofing</div>
                                     <div class="settings-card-body">
                                         <div style="margin-bottom: 16px;">
@@ -4975,7 +4956,7 @@
                     transition:top .08s,left .08s,width .08s,height .08s;
                 "></div>
                 <iframe id="frame"
-                    sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-pointer-lock allow-downloads"
+                    sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-pointer-lock allow-downloads"
                     allow="clipboard-read; clipboard-write; fullscreen; autoplay; camera; microphone; gamepad"></iframe>
             </div>
 
@@ -5590,7 +5571,6 @@
             const defaultBookmarks = [];
             let bookmarks = [];
             let blockEnabled = (function () { try { const saved = ls.getItem('gust:block:v1'); return saved !== null ? saved === 'true' : true; } catch { return true; } })();
-            let jsProxyEnabled = (function () { try { const saved = ls.getItem('gust:jsproxy:v1'); return saved !== null ? saved === 'true' : true; } catch { return true; } })();
             let tabCacheEnabled = true;
             let panelWidthPersist = true; 
             let wallpaperIdx = 0;
@@ -8328,48 +8308,15 @@
                 }
             }
 
-            function rewriteJsSource(src, jsUrl, isModule = false) {
-                try {
-                    const resolveUrl = (path) => {
-                        if (/^(data:|blob:|http:|https:)/i.test(path)) return path;
-                        try { return new URL(path, jsUrl).href; } catch { return path; }
-                    };
-                    src = src.replace(/\bimport\.meta\.url\b/g, JSON.stringify(jsUrl));
-                    src = src.replace(/\bimportScripts\s*\(/g, '__gustImportScripts(');
-                    src = src.replace(/\bimport\s*\(\s*(['"`])((?:(?!\1).)+)\1\s*\)/g, (m, q, u) => {
-                        return `import(${q}${resolveUrl(u)}${q})`;
-                    });
-                    if (isModule) {
-                        src = src.replace(/\bimport\s+([\s\S]*?)\s+from\s+(['"])([^'"]+)\2/g, (m, imports, q, path) => {
-                            return `import ${imports} from ${q}${resolveUrl(path)}${q}`;
-                        });
-                        src = src.replace(/\bimport\s+(['"])([^'"]+)\1/g, (m, q, path) => {
-                            if (m.includes('from')) return m;
-                            return `import ${q}${resolveUrl(path)}${q}`;
-                        });
-                        src = src.replace(/\bexport\s+([\s\S]*?)\s+from\s+(['"])([^'"]+)\2/g, (m, exports, q, path) => {
-                            return `export ${exports} from ${q}${resolveUrl(path)}${q}`;
-                        });
-                        src = src.replace(/\bexport\s+\*\s+from\s+(['"])([^'"]+)\1/g, (m, q, path) => {
-                            return `export * from ${q}${resolveUrl(path)}${q}`;
-                        });
-                    }
-                } catch (e) { }
-                return src;
-            }
-
-            function makeProxyScript(baseUrl, jsProxy = true, blockEnabled = true, webrtcBlock = false, pageUA = null, spellcheck = false) {
+            function makeProxyScript(baseUrl, blockEnabled = true, webrtcBlock = false, pageUA = null, spellcheck = false) {
                 const proxySkipList = [...SKIP_DOMAINS, ...getCustomFilters().network];
                 return `(function(){
 if(window.__P) return;
 window.__P = true;
-// Diagnostic: confirm proxy script started
-try { parent.postMessage({ t: 'c', m: 'log', a: ['[GUST-PROXY] script started'] }, '*'); } catch(e) {}
 
 const BASE = ${JSON.stringify(baseUrl)};
 const ORIGIN = new URL(BASE).origin;
 const SKIP = ${JSON.stringify(proxySkipList)};
-const JS_PROXY = ${JSON.stringify(!!jsProxy)};
 const BLOCK_ENABLED = ${JSON.stringify(!!blockEnabled)};
 const WEBRTC_BLOCK = ${JSON.stringify(!!webrtcBlock)};
 const SPOOF_UA = ${JSON.stringify(pageUA || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')};
@@ -8387,36 +8334,6 @@ try { Object.defineProperty(window, '__webpack_public_path__', { get: () => wind
 
 let currentScript = null;
 const scriptUrls = new WeakMap();
-
-function rewriteJsSource(src, jsUrl, isModule = false) {
-  try {
-    const resolveUrl = (path) => {
-      if (/^(data:|blob:|http:|https:)/i.test(path)) return path;
-      try { return new URL(path, jsUrl).href; } catch { return path; }
-    };
-    src = src.replace(/\\bimport\\.meta\\.url\\b/g, JSON.stringify(jsUrl));
-    src = src.replace(/\\bimportScripts\\s*\\(/g, '__gustImportScripts(');
-    src = src.replace(/\\bimport\\s*\\(\\s*(['"\`])((?:(?!\\1).)+)\\1\\s*\\)/g, (m, q, u) => {
-      return \`import(\${q}\${resolveUrl(u)}\${q})\`;
-    });
-    if (isModule) {
-      src = src.replace(/\\bimport\\s+([\\s\\S]*?)\\s+from\\s+(['"])([^'"]+)\\2/g, (m, imports, q, path) => {
-        return \`import \${imports} from \${q}\${resolveUrl(path)}\${q}\`;
-      });
-      src = src.replace(/\\bimport\\s+(['"])([^'"]+)\\1/g, (m, q, path) => {
-        if (m.includes('from')) return m;
-        return \`import \${q}\${resolveUrl(path)}\${q}\`;
-      });
-      src = src.replace(/\\bexport\\s+([\\s\\S]*?)\\s+from\\s+(['"])([^'"]+)\\2/g, (m, exports, q, path) => {
-        return \`export \${exports} from \${q}\${resolveUrl(path)}\${q}\`;
-      });
-      src = src.replace(/\\bexport\\s+\\*\\s+from\\s+(['"])([^'"]+)\\1/g, (m, q, path) => {
-        return \`export * from \${q}\${resolveUrl(path)}\${q}\`;
-      });
-    }
-  } catch (e) {}
-  return src;
-}
 
 function patchScriptNode(node, realSrc) {
   if (!node || node.__isPatched || !realSrc) return node;
@@ -8596,7 +8513,6 @@ async function fetchBlob(url, type) {
 const _fetch = window.fetch;
 window.fetch = async function(input, init = {}) {
   let url = typeof input === 'string' ? input : (input instanceof URL ? input.href : (input?.url || String(input)));
-  try { parent.postMessage({ t: 'c', m: 'log', a: ['[fetch] ' + url.slice(0, 80)] }, '*'); } catch(e) {}
   if (/^blob:/i.test(url)) return _fetch.call(window, input, init);
   url = resolve(url);
   if (shouldSkip(url)) return new Response('', { status: 200 });
@@ -8839,46 +8755,6 @@ if (cssTextDesc?.set) { Object.defineProperty(styleProto, 'cssText', { get: cssT
 const origAppend = Node.prototype.appendChild;
 const origInsert = Node.prototype.insertBefore;
 
-function proxyScriptNode(node) {
-  if (!JS_PROXY || node?.tagName !== 'SCRIPT') return Promise.resolve(node);
-  const src = node.getAttribute('src');
-  if (!src || /^(data:|blob:)/i.test(src)) return Promise.resolve(node);
-  const url = resolve(src);
-  if (shouldSkip(url)) { node.dispatchEvent(new Event('load')); return Promise.resolve(null); }
-  node.setAttribute('data-proxy-src', url);
-  node.removeAttribute('src');
-  return req(url).then(r => {
-    const bin = atob(r.d || '');
-    const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-    let jsText = new TextDecoder().decode(arr);
-    jsText = rewriteJsSource(jsText, url, node.getAttribute('type') === 'module');
-    const blob = new Blob([new TextEncoder().encode(jsText)], { type: 'application/javascript' });
-    const burl = URL.createObjectURL(blob);
-    node.setAttribute('src', burl);
-    scriptUrls.set(node, url);
-    return node;
-  }).catch(() => {
-    node.setAttribute('src', url);
-    return node;
-  });
-}
-
-Node.prototype.appendChild = function(node) {
-  if (JS_PROXY && node?.tagName === 'SCRIPT' && node.getAttribute('src') && !/^(data:|blob:)/i.test(node.getAttribute('src'))) {
-    proxyScriptNode(node).then(n => { if (n) origAppend.call(this, n); });
-    return node;
-  }
-  return origAppend.call(this, node);
-};
-Node.prototype.insertBefore = function(node, ref) {
-  if (JS_PROXY && node?.tagName === 'SCRIPT' && node.getAttribute('src') && !/^(data:|blob:)/i.test(node.getAttribute('src'))) {
-    proxyScriptNode(node).then(n => { if (n) origInsert.call(this, n, ref); });
-    return node;
-  }
-  return origInsert.call(this, node, ref);
-};
-
 const origSetAttr = Element.prototype.setAttribute;
 Element.prototype.setAttribute = function(name, value) { const tag = this.tagName; if (tag === 'LINK' && name === 'href' && (this.rel || '').includes('stylesheet')) { if (value && !/^(data:|blob:)/i.test(value)) { const url = resolve(value); if (shouldSkip(url)) return; const link = this; req(url).then(async r => { const bin = atob(r.d || ''); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); let css = new TextDecoder().decode(arr); css = await rewriteCss(css, url); const style = document.createElement('style'); style.textContent = css; if (link.parentNode) link.parentNode.replaceChild(style, link); }).catch(() => origSetAttr.call(this, name, value)); return; } } if ((tag === 'IMG' || tag === 'VIDEO' || tag === 'AUDIO' || tag === 'SOURCE') && (name === 'src' || name === 'poster')) { if (value && !/^(data:|blob:)/i.test(value)) { this[name] = value; return; } } return origSetAttr.call(this, name, value); };
 
@@ -8936,40 +8812,10 @@ const observer = new MutationObserver(muts => {
         processEl(node);
         node.querySelectorAll?.('*').forEach(processEl);
       }
-    } else if (mut.type === 'attributes') {
-      const el = mut.target;
-      if (!el || el.nodeType !== 1) continue;
-      const attr = mut.attributeName;
-      const tag = el.tagName;
-      if ((tag === 'IMG' || tag === 'VIDEO' || tag === 'AUDIO' || tag === 'SOURCE') && (attr === 'src' || attr === 'poster')) {
-        const val = el.getAttribute(attr);
-        if (val && !/^(data:|blob:)/i.test(val) && val !== el.getAttribute('data-real-' + attr)) {
-          if (attr === 'src') el.src = val;
-          else if (attr === 'poster') el.poster = val;
-        }
-      }
-      if ((tag === 'IMG' || tag === 'SOURCE') && attr === 'srcset') {
-        const val = el.getAttribute('srcset');
-        if (val && !/blob:/.test(val)) el.srcset = val;
-      }
-      // Defuse dynamically-mutated anchor hrefs.
-      if ((tag === 'A' || tag === 'AREA') && attr === 'href') {
-        const val = el.getAttribute('href');
-        if (val && !/^(javascript:|#|data:|blob:|mailto:|tel:)/i.test(val)) {
-          try {
-            const abs = resolve(val);
-            el.setAttribute('data-gust-href', abs);
-            el.setAttribute('href', 'javascript:void(0)');
-          } catch {}
-        }
-        // Strip target so links never escape the proxy iframe
-        const tgt = (el.getAttribute('target') || '').toLowerCase();
-        if (tgt && tgt !== '_self') el.setAttribute('target', '_self');
-      }
     }
   }
 });
-observer.observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['src', 'srcset', 'poster', 'data-src', 'data-lazy', 'data-original', 'data-lazy-src', 'href', 'target'] });
+observer.observe(document, { childList: true, subtree: true });
 
 // Pre-defuse all existing anchors on initial load.
 // Store real URL in data-gust-href, set href=javascript:void(0) so the
@@ -9069,77 +8915,6 @@ window.__gustImportScripts = function(...urls) {
   });
 };
 
-if (JS_PROXY) {
-const _createElement = document.createElement.bind(document);
-document.createElement = function(tag, opts) {
-  const el = _createElement(tag, opts);
-  if (tag.toLowerCase() === 'script') {
-    let _src = '';
-    Object.defineProperty(el, 'src', {
-      get() { return _src; },
-      set(val) {
-        if (!val || /^(data:|blob:)/i.test(val)) { _src = val; return; }
-        const absUrl = resolve(val);
-        if (shouldSkip(absUrl)) { _src = val; el.dispatchEvent(new Event('load')); return; }
-        _src = absUrl;
-        origSetAttr.call(el, 'data-proxy-src', absUrl);
-        if (!el.parentNode) {
-          // Not yet in DOM. Set src attribute so Node.prototype.appendChild / insertBefore
-          // will proxy it correctly — preserving onload/onerror on the original element.
-          origSetAttr.call(el, 'src', absUrl);
-          return;
-        }
-        // Already in DOM — fetch now and replace with a clone that carries all handlers.
-        origSetAttr.call(el, 'src', absUrl);
-        req(absUrl).then(r => {
-          const bin = atob(r.d || '');
-          const arr = new Uint8Array(bin.length);
-          for (let k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
-          let jsText = new TextDecoder().decode(arr);
-          jsText = rewriteJsSource(jsText, absUrl, el.getAttribute('type') === 'module');
-          const blob = new Blob([new TextEncoder().encode(jsText)], { type: 'application/javascript' });
-          const burl = URL.createObjectURL(blob);
-          _src = burl;
-          scriptUrls.set(el, absUrl);
-          const par = el.parentNode;
-          if (par) {
-            const clone = _createElement('script', opts);
-            // Copy all attributes (except src/data-proxy-src which we set manually)
-            [...el.attributes].forEach(a => {
-              if (a.name !== 'src' && a.name !== 'data-proxy-src') {
-                try { origSetAttr.call(clone, a.name, a.value); } catch {}
-              }
-            });
-            origSetAttr.call(clone, 'src', burl);
-            // Preserve IDL event handlers and script properties
-            if (el.onload)  clone.onload  = el.onload;
-            if (el.onerror) clone.onerror = el.onerror;
-            clone.async = el.async;
-            clone.defer = el.defer;
-            scriptUrls.set(clone, absUrl);
-            par.replaceChild(clone, el);
-          }
-        }).catch(() => { /* leave src as-is, browser may load directly */ });
-      },
-      configurable: true
-    });
-    // Also intercept inline JS set via .textContent or .innerHTML on dynamically
-    // created script elements, so location.href/assign/replace inside them are caught.
-    const _tcDesc = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
-    Object.defineProperty(el, 'textContent', {
-      get() { return _tcDesc?.get?.call(this) ?? ''; },
-      set(val) {
-        if (val && typeof val === 'string') {
-          try { val = rewriteJsSource(val, BASE, (el.getAttribute('type') || '') === 'module'); } catch {}
-        }
-        _tcDesc?.set?.call(this, val);
-      },
-      configurable: true
-    });
-  }
-  return el;
-};
-} 
 
 document.addEventListener('mousedown', e => {
   const a = e.target?.closest?.('a, area');
@@ -9155,11 +8930,8 @@ document.addEventListener('mousedown', e => {
 }, true);
 document.addEventListener('click', e => {
   const a = e.target?.closest?.('a, area');
-  if (!a) { console.log('[GUST-click] no anchor'); return; }
-  const _raw_href = a.getAttribute('href');
-  const _gust_href = a.getAttribute('data-gust-href');
-  const href = a._gustHref || _gust_href || _raw_href;
-  console.log('[GUST-click] href=' + href + ' data-gust-href=' + _gust_href + ' raw=' + _raw_href);
+  if (!a) return;
+  const href = a._gustHref || a.getAttribute('data-gust-href') || a.getAttribute('href');
   if (!href) return;
   if (href.startsWith('#')) {
     const id = href.slice(1);
@@ -9171,11 +8943,10 @@ document.addEventListener('click', e => {
     return;
   }
   // Skip non-navigatable schemes (javascript:void(0) with no data-gust-href).
-  if (/^(javascript:|mailto:|tel:|data:|blob:)/i.test(href)) { console.log('[GUST-click] skipped scheme: ' + href); return; }
+  if (/^(javascript:|mailto:|tel:|data:|blob:)/i.test(href)) { return; }
   e.preventDefault();
   e.stopPropagation();
   e.stopImmediatePropagation();
-  console.log('[GUST-click] posting nav: ' + href);
   parent.postMessage({ t: 'n', u: resolve(href) }, '*');
 }, true);
 document.addEventListener('auxclick', e => { if (e.button !== 1) return; const a = e.target?.closest?.('a, area'); if (!a) return; const href = a._gustHref || a.getAttribute('data-gust-href') || a.getAttribute('href'); if (!href || /^(javascript:|#)/i.test(href)) return; e.preventDefault(); e.stopPropagation(); parent.postMessage({ t: 'n', u: resolve(href) }, '*'); }, true);
@@ -9391,7 +9162,7 @@ try {
   const _navProto = Object.getPrototypeOf(navigator);
   [
     ['userAgent', SPOOF_UA],
-    ['appVersion', SPOOF_UA.replace(/^Mozilla\//, '')],
+    ['appVersion', SPOOF_UA.replace(/^Mozilla\\//, '')],
     ['platform', 'Win32'],
     ['vendor', 'Google Inc.'],
     ['product', 'Gecko'],
@@ -9401,31 +9172,11 @@ try {
     try { Object.defineProperty(navigator, prop, { get: () => val, configurable: true }); } catch {}
     try { Object.defineProperty(_navProto, prop, { get: () => val, configurable: true }); } catch {}
   });
-  // language/languages intentionally left as-is so locale-aware sites work correctly
 } catch(e) {}
 
 try { document.querySelectorAll('input, textarea').forEach(el => el.spellcheck = SPELLCHECK); } catch(e) {}
 
-// Page-health diagnostic: runs ~3 s after load to report key framework state
-window.addEventListener('load', function() {
-  setTimeout(function() {
-    try {
-      const hasCE = typeof customElements !== 'undefined';
-      const ytApp = hasCE && customElements.get('ytd-app');
-      const ytInitDefined = typeof window.ytInitialData !== 'undefined';
-      const ytInitKeys = ytInitDefined ? Object.keys(window.ytInitialData || {}).length : -1;
-      const ytcfgDefined = typeof window.ytcfg !== 'undefined';
-      parent.postMessage({ t: 'c', m: 'info', a: [
-        '[diag2] ytInitialData=' + (ytInitDefined ? ytInitKeys + ' keys' : 'MISSING') +
-        ' ytd-app=' + (ytApp ? 'defined' : 'UNDEFINED') +
-        ' ytcfg=' + (ytcfgDefined ? 'ok' : 'MISSING')
-      ]}, '*');
-    } catch(e) {}
-  }, 3000);
-});
-
 parent.postMessage({ t: 'ready' }, '*');
-console.log('[Proxy] Ready');
 })();`;
             }
 
@@ -10483,7 +10234,7 @@ _VIEWER_DL_JS +
                     // Insert proxy script as very first child so it runs before any page scripts
                     const proxyScript = doc.createElement("script");
                     proxyScript.setAttribute('data-gust-injected', '1');
-                    proxyScript.textContent = makeProxyScript(url, jsProxyEnabled, blockEnabled, mediaPref('gust:webrtc:block:v1'), (() => { try { return ls.getItem('gust:ua:page:v1') || null; } catch { return null; } })(), (() => { try { return ls.getItem('gust:spellcheck:v1') === 'true'; } catch { return false; } })());
+                    proxyScript.textContent = makeProxyScript(url, blockEnabled, mediaPref('gust:webrtc:block:v1'), (() => { try { return ls.getItem('gust:ua:page:v1') || null; } catch { return null; } })(), (() => { try { return ls.getItem('gust:spellcheck:v1') === 'true'; } catch { return false; } })());
                     doc.head.insertBefore(proxyScript, doc.head.firstChild);
 
                     // Ensure base tag stays right after the proxy script
@@ -10590,11 +10341,9 @@ _VIEWER_DL_JS +
                         return cssText;
                     }
 
-                    log(`[diag] CSS links: ${cssLinks.length}, Scripts: ${doc.querySelectorAll('script[src]').length}, tabMatch: ${activeTabId === initiatorTabId}`, 'info');
-
                     const BATCH_SIZE = 15;
                     for (let i = 0; i < cssLinks.length; i += BATCH_SIZE) {
-                        if (activeTabId !== initiatorTabId) { log('[diag] tab mismatch before CSS batch', 'warn'); return; }
+                        if (activeTabId !== initiatorTabId) { return; }
                         const batch = cssLinks.slice(i, i + BATCH_SIZE);
                         const batchPromises = batch.map(async link => {
                             const href = link.getAttribute("href");
@@ -10674,143 +10423,22 @@ _VIEWER_DL_JS +
 
                     if (tabCtrl.signal.aborted || activeTabId !== initiatorTabId) return;
 
-                    // Rewrite inline <script> blocks (no src) so that any location.href,
-                    // location.assign(), window.open(), etc. inside them resolve correctly.
-                    // External scripts get rewriteJsSource via processScriptBatch below;
-                    // inline scripts were previously skipped entirely.
-                    if (jsProxyEnabled) {
-                        doc.querySelectorAll('script:not([src]):not([data-gust-injected])').forEach(scr => {
-                            const type = (scr.getAttribute('type') || '').toLowerCase();
-                            if (type && type !== 'text/javascript' && type !== 'module' && type !== 'application/javascript') return;
-                            const text = scr.textContent;
-                            if (!text || !text.trim()) return;
-                            try {
-                                const rewritten = rewriteJsSource(text, url, type === 'module');
-                                if (rewritten !== text) scr.textContent = rewritten;
-                            } catch (e) {}
-                        });
-                    }
 
-                    const SCRIPT_PAGE = 60;
-                    const JS_BATCH = 20;
-                    const allScripts = [...doc.querySelectorAll("script[src]")];
-
-                    async function processScriptBatch(scriptList) {
-                        const promises = scriptList.map(async scr => {
-                            const src = scr.getAttribute("src");
-                            if (!src || /^(data:|blob:)/i.test(src)) return;
-                            const jsUrl = new URL(src, url).href;
-                            if (shouldSkip(jsUrl)) {
-                                scr.remove();
-                                return;
-                            }
-                            const isModule = scr.getAttribute("type") === "module";
-                            if (!jsProxyEnabled) {
-                                scr.setAttribute("data-original-src", jsUrl);
-                                scr.setAttribute("src", jsUrl);
-                                return;
-                            }
-                            try {
-                                const jsR = await queueFetch(jsUrl, { signal: tabCtrl.signal }, PRIORITY.js);
-                                if (activeTabId !== initiatorTabId) return;
-                                let jsText = new TextDecoder().decode(jsR.buf);
-                                jsText = rewriteJsSource(jsText, jsUrl, isModule);
-                                const blob = new Blob([jsText], { type: "application/javascript" });
-                                const blobUrl = URL.createObjectURL(blob);
-                                scr.setAttribute("data-original-src", jsUrl);
-                                scr.removeAttribute("src");
-                                scr.setAttribute("src", blobUrl);
-                                if (isModule) scr.setAttribute("type", "module");
-                                if (!jsR.fromCache) {
-                                    const _jsKb = (jsR.buf.byteLength / 1024).toFixed(1);
-                                    log(`<i class="fas fa-code" style="color:${jsR.status >= 400 ? 'var(--err)' : 'var(--ok)'}"></i>JS ${jsR.status || 200} · ${_jsKb}KB · ${jsUrl.replace(/^https?:\/\//, '').slice(0, 45)}`, jsR.status >= 400 ? "err" : "ok");
-                                }
-                            } catch (e) {
-                                if (e.name === 'AbortError') return;
-                                log(`<i class="fas fa-triangle-exclamation" style="color:var(--warn)"></i>JS direct: ${jsUrl.replace(/^https?:\/\//, '').slice(0, 50)}`, "warn");
-                                scr.setAttribute("data-original-src", jsUrl);
-                                scr.setAttribute("src", jsUrl);
-                            }
-                        });
-                        for (let i = 0; i < promises.length; i += JS_BATCH) {
-                            if (tabCtrl.signal.aborted || activeTabId !== initiatorTabId) return;
-                            await Promise.all(promises.slice(i, i + JS_BATCH));
+                    // JS - keep as external scripts to preserve defer/module semantics
+                    // Limit to 50 scripts to prevent overwhelming the queue
+                    const allScripts = [...doc.querySelectorAll("script[src]")].slice(0, 50);
+                    allScripts.forEach(scr => {
+                        const src = scr.getAttribute("src");
+                        if (!src || /^(data:|blob:)/i.test(src)) return;
+                        const jsUrl = new URL(src, url).href;
+                        if (shouldSkip(jsUrl)) {
+                            scr.remove();
+                            return;
                         }
-                    }
-
-                    // First pass: process scripts 0–59 before srcdoc renders
-                    const firstBatch = allScripts.slice(0, SCRIPT_PAGE);
-                    await processScriptBatch(firstBatch);
-
-                    // Remaining passes: inject into live iframe after render, no repeats
-                    const remainingScripts = allScripts.slice(SCRIPT_PAGE);
-                    if (remainingScripts.length > 0) {
-                        (async () => {
-                            // Wait for iframe to be ready
-                            await new Promise(res => {
-                                const check = setInterval(() => {
-                                    if (tabCtrl.signal.aborted) { clearInterval(check); res(); return; }
-                                    if (frame.contentDocument && frame.contentDocument.readyState !== 'loading') {
-                                        clearInterval(check); res();
-                                    }
-                                }, 80);
-                                setTimeout(() => { clearInterval(check); res(); }, 5000);
-                            });
-                            if (tabCtrl.signal.aborted || activeTabId !== initiatorTabId) return;
-                            const iframeDoc = frame.contentDocument;
-                            if (!iframeDoc) return;
-                            for (let pageStart = 0; pageStart < remainingScripts.length; pageStart += SCRIPT_PAGE) {
-                                if (tabCtrl.signal.aborted || activeTabId !== initiatorTabId) return;
-                                const page = remainingScripts.slice(pageStart, pageStart + SCRIPT_PAGE);
-                                log(`<i class="fas fa-layer-group" style="color:var(--ac)"></i>JS batch ${Math.floor(pageStart / SCRIPT_PAGE) + 2}: ${page.length} scripts`, "info");
-                                // Build live script nodes for this page and inject
-                                const livePromises = page.map(async scr => {
-                                    const src = scr.getAttribute("src") || scr.getAttribute("data-original-src");
-                                    if (!src || /^(data:|blob:)/i.test(src)) return;
-                                    const jsUrl = new URL(src, url).href;
-                                    if (shouldSkip(jsUrl)) return;
-                                    const isModule = scr.getAttribute("type") === "module";
-                                    if (!jsProxyEnabled) {
-                                        const s = iframeDoc.createElement("script");
-                                        s.setAttribute("data-original-src", jsUrl);
-                                        s.src = jsUrl;
-                                        if (isModule) s.type = "module";
-                                        (iframeDoc.body || iframeDoc.head).appendChild(s);
-                                        return;
-                                    }
-                                    try {
-                                        const jsR = await queueFetch(jsUrl, { signal: tabCtrl.signal }, PRIORITY.js);
-                                        if (activeTabId !== initiatorTabId) return;
-                                        let jsText = new TextDecoder().decode(jsR.buf);
-                                        jsText = rewriteJsSource(jsText, jsUrl, isModule);
-                                        const blob = new Blob([jsText], { type: "application/javascript" });
-                                        const blobUrl = URL.createObjectURL(blob);
-                                        const s = iframeDoc.createElement("script");
-                                        s.setAttribute("data-original-src", jsUrl);
-                                        s.src = blobUrl;
-                                        if (isModule) s.type = "module";
-                                        (iframeDoc.body || iframeDoc.head).appendChild(s);
-                                        if (!jsR.fromCache) {
-                                            const _dKb = (jsR.buf.byteLength / 1024).toFixed(1);
-                                            log(`<i class="fas fa-code" style="color:${jsR.status >= 400 ? 'var(--err)' : 'var(--ok)'}"></i>JS(d) ${jsR.status || 200} · ${_dKb}KB · ${jsUrl.replace(/^https?:\/\//, '').slice(0, 45)}`, jsR.status >= 400 ? "err" : "ok");
-                                        }
-                                    } catch (e) {
-                                        if (e.name === 'AbortError') return;
-                                        log(`<i class="fas fa-triangle-exclamation" style="color:var(--warn)"></i>JS(d) direct: ${jsUrl.replace(/^https?:\/\//, '').slice(0, 50)}`, "warn");
-                                        const s = iframeDoc.createElement("script");
-                                        s.setAttribute("data-original-src", jsUrl);
-                                        s.src = jsUrl;
-                                        if (isModule) s.type = "module";
-                                        (iframeDoc.body || iframeDoc.head).appendChild(s);
-                                    }
-                                });
-                                for (let i = 0; i < livePromises.length; i += JS_BATCH) {
-                                    if (tabCtrl.signal.aborted || activeTabId !== initiatorTabId) return;
-                                    await Promise.all(livePromises.slice(i, i + JS_BATCH));
-                                }
-                            }
-                        })();
-                    }
+                        scr.setAttribute("data-original-src", jsUrl);
+                        scr.setAttribute("src", jsUrl);
+                        log("JS: " + jsUrl.slice(0, 40));
+                    });
 
                     if (tabCtrl.signal.aborted || activeTabId !== initiatorTabId) return;
 
@@ -12213,8 +11841,6 @@ _VIEWER_DL_JS +
                 if (wispInput) wispInput.value = WISP;
                 const blockSwitch = $("settingsBlockSwitch");
                 if (blockSwitch) blockSwitch.classList.toggle("on", blockEnabled);
-                const jsProxySwitch = $("settingsJsProxySwitch");
-                if (jsProxySwitch) jsProxySwitch.classList.toggle("on", jsProxyEnabled);
                 updateCacheSize();
                 if (cacheSizeEl) {
                     const cs = $("settingsCacheSize");
@@ -12363,19 +11989,6 @@ _VIEWER_DL_JS +
                     blockSwitch.onclick = () => {
                         setBlockEnabled(!blockEnabled);
                         blockSwitch.classList.toggle("on", blockEnabled);
-                    };
-                }
-
-                const jsProxySwitch = $("settingsJsProxySwitch");
-                if (jsProxySwitch) {
-                    jsProxySwitch.classList.toggle("on", jsProxyEnabled);
-                    jsProxySwitch.onclick = () => {
-                        jsProxyEnabled = !jsProxyEnabled;
-                        try { ls.setItem('gust:jsproxy:v1', jsProxyEnabled ? 'true' : 'false'); } catch { }
-                        jsProxySwitch.classList.toggle("on", jsProxyEnabled);
-                        if (pageUrl && pageUrl !== HOME_INTERNAL && !isSettingsPage(pageUrl)) {
-                            go(pageUrl, false);
-                        }
                     };
                 }
 
