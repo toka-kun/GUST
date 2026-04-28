@@ -383,14 +383,14 @@ button,input,select,textarea{font:inherit}
     <div class="sidebar-master-bar-icon"><i class="fas fa-table-list"></i></div>
     <div class="sidebar-master-bar-info">
       <div class="sidebar-master-bar-label">Show Language in Settings Sidebar</div>
-      <div class="sidebar-master-bar-desc">Uncheck to remove the <strong>Language</strong> entry from GUST's Settings sidebar. The (non-functional) language picker panel will be hidden and its nav entry removed entirely.</div>
+      <div class="sidebar-master-bar-desc">Uncheck to remove the <strong>Language</strong> entry from GUST's Settings sidebar. The language picker panel will be hidden and its nav entry removed entirely.</div>
     </div>
     <div class="sidebar-master-check checked" data-patch="sidebar-nav-language" data-section="language" data-master-for="language" onclick="toggleSidebarMaster(this)"></div>
   </div>
   <div class="settings-card">
-    <div class="settings-card-head"><i class="fas fa-language"></i> Language <span class="broken-tag">[BROKEN]</span></div>
+    <div class="settings-card-head"><i class="fas fa-language"></i> Language</div>
     <div class="settings-card-body">
-      <div class="patch-row"><div class="patch-row-info"><div class="patch-row-label">Preferred language picker <span class="broken-tag">broken</span></div><div class="patch-row-desc">Removes the language selector from Settings. It is non-functional in base GUST — no behaviour change.</div></div><div class="patch-check checked" data-patch="language" data-section="language" onclick="togglePatch(this)"></div></div>
+      <div class="patch-row"><div class="patch-row-info"><div class="patch-row-label">Preferred language picker</div><div class="patch-row-desc">Removes the language selector from Settings.</div></div><div class="patch-check checked" data-patch="language" data-section="language" onclick="togglePatch(this)"></div></div>
     </div>
   </div>
 </div>
@@ -1265,8 +1265,8 @@ function buildPatchScript(removedPatches) {
   if (rm.has('nt-clock24'))      { ls('gust:24hrclock:v1','false'); }
   if (rm.has('shortcuts-panel')) { ls('gust:shortcutsEnabled','0'); }
   if (rm.has('tutorial-auto') || rm.has('tutorial-include')) {
-    // All known tutorial-done key variants
-    ls('gust:tutorial','done'); ls('gust:tutorial:done','1');
+    // All known tutorial-done key variants (gust:tutorial:v1 is the current key)
+    ls('gust:tutorial','done'); ls('gust:tutorial:done','1'); ls('gust:tutorial:v1','done');
   }
   if (rm.has('fallback-enabled'))  { ls('gust:fallback:enabled','0'); }
   if (rm.has('fallback-5xx'))      { ls('gust:fallback:5xx','0'); }
@@ -1420,7 +1420,17 @@ function buildPatchScript(removedPatches) {
   if (rm.has('tutorial-include') || rm.has('tutorial-auto')) {
     js('window.startTutorial=function(){};');
     js('window.endTutorial=function(){};');
+    js('window.__gustStartTutorial=function(){};');
     js('try{Object.defineProperty(window,"startTutorial",{configurable:true,writable:true,value:function(){}});}catch(e){}');
+    js('try{Object.defineProperty(window,"__gustStartTutorial",{configurable:true,writable:true,value:function(){}});}catch(e){}');
+    // Block the deferred tutorial gate introduced in newer GUST builds
+    js('window._onLibcurlInitDone=(function(orig){');
+    js('  return function(){');
+    js('    if(typeof orig==="function") orig.apply(this,arguments);');
+    js('    window.__gustStartTutorial=function(){};');
+    js('    window.startTutorial=function(){};');
+    js('  };');
+    js('})(window._onLibcurlInitDone);');
   }
   if (rm.has('auto-fullscreen')) {
     js('(function(){');
