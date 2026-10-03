@@ -153,13 +153,25 @@ Put it inside another HTML file as an `<iframe>`. Works from a Blob URL. Works f
 
 | Person | What they actually did |
 |--------|----------------------|
-| **lanefiedler** | Built the original proxy framework and UI shell, which was built upon to become the proxy you see today |
-| **dinguschan** | Redesigned the browser interface, rewrote large portions of the proxy JS, added most of the current features |
-| **x8rr** | Ported GUST to SVG, Bug reports, feedback, light assistance, and the parts of this README |
+| **lanefiedler** | Started GUST as a personal hobby project and built the original proxy/framework and first UI |
+| **dinguschan** | Took over the public project, uploaded and maintained it, and built out most of the browser, features, fixes, and ongoing infrastructure |
+| **x8rr / hvtrs** | Ported GUST to SVG, documentation, testing, bug reports, feedback, and assorted fixes |
 | **Mercury Workshop** | Created the WISP protocol, the WebSocket tunneling layer that makes this all possible |
 | **ading2210** | Built libcurl.js, which is curl compiled to WebAssembly (absolute clutchup) |
 | **Mozilla Foundation** | PDF.js, honestly dude I can't write an entire PDF handler thats just too much and this already exists |
 
+### More specifically
+
+**Lane:** Originally made GUST as a personal hobby project with approximately zero expectation that it would still exist a day later. Built the first proxy/framework and UI, then periodically came back and dropped major chunks of work such as extension support, skins, WebSocket round-robin/failover, and compatibility fixes for sites like GitHub.
+### Things said while Lane was working
+
+> "lane please just lock your computer, step away, and go do something else for 5 minutes"
+>
+> "i swear to god if you had vscode status for discord then the timer would be at like 4 days"
+
+**dinguschan:** Took that original project, uploaded it, maintained it, and basically gave it a long-term existence. Did most of the sustained development: browser UI, proxy rewrites, features, patcher, developer tools, AI assistant, adblocking, settings, security fixes, compatibility work, bug fixes, and general maintenance.
+
+**x8rr / hvtrs:** Ported GUST to SVG, worked on documentation/README material, tested things, reported bugs, gave feedback, and helped with assorted smaller fixes.
 ---
 
 ## Known bugs and limitations
